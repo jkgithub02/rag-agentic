@@ -5,12 +5,19 @@ import json
 from src.config import Settings
 from src.llm_client import BedrockChatClient, LLMInvocationError
 from src.models import (
+    AnswerSynthesisOutput,
+    EvidenceChunk,
     GroundingCheckOutput,
     GroundingResult,
     GroundingStatus,
     QueryRewriteOutput,
 )
-from src.prompts import grounding_prompt, retry_rewrite_prompt, rewrite_query_prompt
+from src.prompts import (
+    answer_prompt,
+    grounding_prompt,
+    retry_rewrite_prompt,
+    rewrite_query_prompt,
+)
 
 
 class QueryReasoner:
@@ -110,6 +117,43 @@ class QueryReasoner:
         except (LLMInvocationError, ValueError, json.JSONDecodeError):
             return fallback, "fallback-llm-error", None
 
+    def synthesize_answer(
+        self,
+        *,
+        query: str,
+        chunks: list[EvidenceChunk],
+    ) -> tuple[str, list[str], str, str | None]:
+        fallback_answer, fallback_chunk_ids = self._fallback_answer(query=query, chunks=chunks)
+        if not self._settings.reasoning_enabled:
+            return fallback_answer, fallback_chunk_ids, "fallback-disabled", None
+
+        evidence_block = "\n".join(
+            f"- [{chunk.chunk_id}] ({chunk.source}) {chunk.text[:300]}" for chunk in chunks[:4]
+        )
+        if not evidence_block:
+            evidence_block = "- No evidence snippets available."
+
+        prompt = answer_prompt(query=query, evidence=evidence_block)
+
+        try:
+            llm_text = self._llm_client.invoke_text(prompt)
+            parsed = self._parse_json_payload(llm_text)
+            output = AnswerSynthesisOutput.model_validate(parsed)
+            answer = output.answer.strip()
+            if not answer:
+                return fallback_answer, fallback_chunk_ids, "fallback-invalid-output", None
+
+            allowed_ids = {chunk.chunk_id for chunk in chunks}
+            citation_chunk_ids = [
+                chunk_id for chunk_id in output.citation_chunk_ids if chunk_id in allowed_ids
+            ]
+            if not citation_chunk_ids:
+                citation_chunk_ids = fallback_chunk_ids
+
+            return answer, citation_chunk_ids, "llm", output.prompt_version
+        except (LLMInvocationError, ValueError, json.JSONDecodeError):
+            return fallback_answer, fallback_chunk_ids, "fallback-llm-error", None
+
     @staticmethod
     def _heuristic_grounding(
         *, answer: str, citations: list[str], evidence: list[str]
@@ -121,6 +165,14 @@ class QueryReasoner:
         if evidence:
             return GroundingResult(status=GroundingStatus.PARTIAL, reason="No citations.")
         return GroundingResult(status=GroundingStatus.UNSUPPORTED, reason="No evidence.")
+
+    @staticmethod
+    def _fallback_answer(query: str, chunks: list[EvidenceChunk]) -> tuple[str, list[str]]:
+        selected = chunks[:2]
+        chunk_ids = [chunk.chunk_id for chunk in selected]
+        answer_lines = [f"- [{chunk.chunk_id}] {chunk.text[:220]}" for chunk in selected]
+        answer = "Question: " + query + "\n\n" + "\n".join(answer_lines)
+        return answer, chunk_ids
 
     @staticmethod
     def _parse_json_payload(text: str) -> dict[str, object]:

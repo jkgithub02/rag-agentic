@@ -38,9 +38,13 @@ class FakeReasoner:
         *,
         grounding_status: GroundingStatus = GroundingStatus.SUPPORTED,
         grounding_reason: str = "Grounded in evidence.",
+        synthesis_answer: str = "BERT pretraining uses masked language modeling.",
+        synthesis_chunk_ids: list[str] | None = None,
     ) -> None:
         self._grounding_status = grounding_status
         self._grounding_reason = grounding_reason
+        self._synthesis_answer = synthesis_answer
+        self._synthesis_chunk_ids = synthesis_chunk_ids or ["bert-0001"]
 
     def rewrite_query(self, query: str) -> tuple[QueryRewriteOutput, str]:
         output = QueryRewriteOutput(rewritten_query=f"{query} in detail?", prompt_version="v1.0.0")
@@ -73,6 +77,15 @@ class FakeReasoner:
             "llm",
             "v1.0.0",
         )
+
+    def synthesize_answer(
+        self,
+        *,
+        query: str,
+        chunks: list[EvidenceChunk],
+    ) -> tuple[str, list[str], str, str | None]:
+        del query, chunks
+        return self._synthesis_answer, self._synthesis_chunk_ids, "llm", "v1.0.0"
 
 
 class AmbiguousTools:
@@ -248,3 +261,39 @@ def test_reasoner_grounding_supported_keeps_answer() -> None:
     assert len(verify_events) == 1
     assert verify_events[0].payload["status"] == GroundingStatus.SUPPORTED
     assert verify_events[0].payload["grounding_source"] == "llm"
+
+
+def test_reasoner_generation_is_used_and_traced() -> None:
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(
+            synthesis_answer="BERT pretraining includes MLM and NSP.",
+            synthesis_chunk_ids=["bert-0001"],
+        ),
+    )
+    response = pipeline.ask("What is BERT pretraining?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert "MLM and NSP" in response.answer
+    assert response.citations == ["bert.pdf#bert-0001"]
+
+    generate_events = [event for event in trace.events if event.stage == "generate"]
+    assert len(generate_events) == 1
+    assert generate_events[0].payload["generation_source"] == "llm"
+
+
+def test_reasoner_generation_unknown_chunk_ids_fallback_to_top_chunks() -> None:
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(synthesis_chunk_ids=["missing-id"]),
+    )
+    response = pipeline.ask("What is BERT pretraining?")
+
+    assert response.citations == ["bert.pdf#bert-0001"]

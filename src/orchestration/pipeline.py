@@ -268,10 +268,36 @@ class AgenticPipeline:
             return {"answer": answer, "citations": [], "safe_fail": True, "trace": trace}
 
         chunks = state["chunks"][:2]
-        citations = [f"{chunk.source}#{chunk.chunk_id}" for chunk in chunks]
-        answer_lines = [f"- [{chunk.chunk_id}] {chunk.text[:220]}" for chunk in chunks]
-        answer = "Question: " + state["original_query"] + "\n\n" + "\n".join(answer_lines)
-        self._event(trace, "generate", {"safe_fail": False, "citations": citations})
+        chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
+        generation_source = "fallback-no-reasoner"
+        prompt_version: str | None = None
+
+        if self._reasoner is not None:
+            answer, citation_chunk_ids, generation_source, prompt_version = (
+                self._reasoner.synthesize_answer(query=state["original_query"], chunks=chunks)
+            )
+            citations = [
+                f"{chunk_by_id[chunk_id].source}#{chunk_id}"
+                for chunk_id in citation_chunk_ids
+                if chunk_id in chunk_by_id
+            ]
+            if not citations:
+                citations = [f"{chunk.source}#{chunk.chunk_id}" for chunk in chunks]
+        else:
+            citations = [f"{chunk.source}#{chunk.chunk_id}" for chunk in chunks]
+            answer_lines = [f"- [{chunk.chunk_id}] {chunk.text[:220]}" for chunk in chunks]
+            answer = "Question: " + state["original_query"] + "\n\n" + "\n".join(answer_lines)
+
+        self._event(
+            trace,
+            "generate",
+            {
+                "safe_fail": False,
+                "citations": citations,
+                "generation_source": generation_source,
+                "prompt_version": prompt_version,
+            },
+        )
         return {"answer": answer, "citations": citations, "safe_fail": False, "trace": trace}
 
     def _verify(self, state: PipelineState) -> PipelineState:

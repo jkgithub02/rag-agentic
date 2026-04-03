@@ -76,6 +76,12 @@ class GroundingCheckOutput(BaseModel):
     prompt_version: str | None = None
 
 
+class AnswerSynthesisOutput(BaseModel):
+    answer: str
+    citation_chunk_ids: list[str] = Field(default_factory=list)
+    prompt_version: str | None = None
+
+
 class ConflictPolicy(StrEnum):
     ASK = "ask"
     REPLACE = "replace"
