@@ -63,3 +63,25 @@ class AskResponse(BaseModel):
     citations: list[str] = Field(default_factory=list)
     safe_fail: bool = False
     trace_id: str
+
+
+class ConflictPolicy(StrEnum):
+    ASK = "ask"
+    REPLACE = "replace"
+    KEEP_BOTH = "keep_both"
+
+
+class UploadStatus(StrEnum):
+    SUCCESS = "success"
+    CONFLICT = "conflict"
+
+
+class UploadResponse(BaseModel):
+    status: UploadStatus
+    message: str
+    original_filename: str
+    stored_filename: str | None = None
+    chunks_added: int | None = None
+    existing_filename: str | None = None
+    suggested_filename: str | None = None
+    conflict_options: list[ConflictPolicy] = Field(default_factory=list)

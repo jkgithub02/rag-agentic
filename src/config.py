@@ -17,11 +17,17 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     bedrock_chat_model_id: str = "anthropic.claude-3-haiku-20240307-v1:0"
     bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
+    embedding_aws_region: str | None = None
+    embedding_provider: str = "bedrock"
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_embedding_model: str = "nomic-embed-text"
 
     documents_dir: Path = Path("documents")
     vector_db_path: Path = Path(".data/qdrant")
     vector_collection_name: str = "paper_chunks"
     vector_manifest_file: Path = Path(".data/vector_manifest.json")
+    allowed_upload_extensions: tuple[str, ...] = (".pdf", ".txt", ".md")
+    upload_max_file_size_mb: int = 25
 
     chunk_size: int = 1200
     chunk_overlap: int = 150
