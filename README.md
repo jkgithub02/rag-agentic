@@ -23,14 +23,20 @@ Flow:
 uv sync
 ```
 
-Copy `.env.example` to `.env` and set your Bedrock values.
+Copy `.env.example` to `.env` and set your Bedrock chat values and Ollama embedding values.
 
-If you want free local embeddings, set `AGENTIC_RAG_EMBEDDING_PROVIDER=ollama` and run Ollama with a local embedding model.
+Embeddings are configured to run through Ollama (`AGENTIC_RAG_EMBEDDING_PROVIDER=ollama`).
 
 Run API:
 
 ```bash
 uv run uvicorn api.main:app --reload
+```
+
+For local Qdrant stability, prefer single-process mode during demos:
+
+```bash
+uv run uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
 Run Streamlit UI:

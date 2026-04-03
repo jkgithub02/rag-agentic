@@ -5,7 +5,9 @@ from functools import lru_cache
 from src.agent.tools import AgentTools
 from src.config import Settings, get_settings
 from src.db.vector_db import VectorDbManager
+from src.llm_client import BedrockChatClient
 from src.orchestration.pipeline import AgenticPipeline
+from src.reasoner import QueryReasoner
 from src.trace_store import TraceStore
 from src.upload_service import UploadService
 
@@ -30,7 +32,24 @@ def get_upload_service() -> UploadService:
 
 
 @lru_cache(maxsize=1)
+def get_bedrock_chat_client() -> BedrockChatClient:
+    settings = get_settings()
+    return BedrockChatClient(settings)
+
+
+@lru_cache(maxsize=1)
+def get_query_reasoner() -> QueryReasoner:
+    settings = get_settings()
+    return QueryReasoner(settings=settings, llm_client=get_bedrock_chat_client())
+
+
+@lru_cache(maxsize=1)
 def get_pipeline() -> AgenticPipeline:
     settings: Settings = get_settings()
     tools = AgentTools(get_vector_db())
-    return AgenticPipeline(settings=settings, tools=tools, trace_store=get_trace_store())
+    return AgenticPipeline(
+        settings=settings,
+        tools=tools,
+        trace_store=get_trace_store(),
+        reasoner=get_query_reasoner(),
+    )

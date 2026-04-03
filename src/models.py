@@ -65,6 +65,11 @@ class AskResponse(BaseModel):
     trace_id: str
 
 
+class QueryRewriteOutput(BaseModel):
+    rewritten_query: str
+    prompt_version: str | None = None
+
+
 class ConflictPolicy(StrEnum):
     ASK = "ask"
     REPLACE = "replace"

@@ -15,10 +15,11 @@ class Settings(BaseSettings):
     )
 
     aws_region: str = "us-east-1"
-    bedrock_chat_model_id: str = "anthropic.claude-3-haiku-20240307-v1:0"
-    bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
-    embedding_aws_region: str | None = None
-    embedding_provider: str = "bedrock"
+    bedrock_chat_model_id: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+    reasoning_enabled: bool = True
+    reasoning_temperature: float = 0.0
+    reasoning_max_tokens: int = 300
+    embedding_provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
 

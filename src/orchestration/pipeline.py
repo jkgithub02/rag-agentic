@@ -12,10 +12,12 @@ from src.models import (
     GroundingResult,
     GroundingStatus,
     PipelineTrace,
+    QueryRewriteOutput,
     TraceEvent,
     ValidationResult,
     ValidationStatus,
 )
+from src.reasoner import QueryReasoner
 from src.trace_store import TraceStore
 
 
@@ -36,10 +38,17 @@ class PipelineState(TypedDict, total=False):
 class AgenticPipeline:
     """ LangGraph pipeline with explicit tool usage."""
 
-    def __init__(self, settings: Settings, tools: AgentTools, trace_store: TraceStore) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        tools: AgentTools,
+        trace_store: TraceStore,
+        reasoner: QueryReasoner | None = None,
+    ) -> None:
         self._settings = settings
         self._tools = tools
         self._trace_store = trace_store
+        self._reasoner = reasoner
         self._graph = self._build_graph()
 
     def ask(self, query: str) -> AskResponse:
@@ -80,12 +89,27 @@ class AgenticPipeline:
 
     def _understand(self, state: PipelineState) -> PipelineState:
         original_query = " ".join(state["query"].split())
-        rewritten_query = original_query.rstrip("?") + "?"
+        rewrite_result: QueryRewriteOutput | None = None
+        rewrite_source = "fallback-no-reasoner"
+
+        if self._reasoner is not None:
+            rewrite_result, rewrite_source = self._reasoner.rewrite_query(original_query)
+
+        rewritten_query = (
+            rewrite_result.rewritten_query
+            if rewrite_result is not None
+            else original_query.rstrip("?") + "?"
+        )
         trace = PipelineTrace(original_query=original_query, rewritten_query=rewritten_query)
         self._event(
             trace,
             "understand",
-            {"original": original_query, "rewritten": rewritten_query},
+            {
+                "original": original_query,
+                "rewritten": rewritten_query,
+                "rewrite_source": rewrite_source,
+                "prompt_version": rewrite_result.prompt_version if rewrite_result else None,
+            },
         )
         return {
             "original_query": original_query,

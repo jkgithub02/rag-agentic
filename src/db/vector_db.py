@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 from threading import Lock
 
-from langchain_aws import BedrockEmbeddings
 from langchain_core.embeddings import Embeddings
 from langchain_ollama import OllamaEmbeddings
 from pypdf import PdfReader
@@ -38,15 +37,7 @@ class VectorDbManager:
                 base_url=settings.ollama_base_url,
             )
 
-        if provider == "bedrock":
-            return BedrockEmbeddings(
-                model_id=settings.bedrock_embedding_model_id,
-                region_name=settings.embedding_aws_region or settings.aws_region,
-            )
-
-        raise ValueError(
-            "Unsupported embedding provider. Use 'bedrock' or 'ollama'."
-        )
+        raise ValueError("Unsupported embedding provider. Use 'ollama'.")
 
     def build_index(self) -> int:
         with self._write_lock:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.config import Settings
-from src.models import EvidenceChunk
+from src.models import EvidenceChunk, QueryRewriteOutput
 from src.orchestration.pipeline import AgenticPipeline
 from src.trace_store import TraceStore
 
@@ -27,6 +27,12 @@ class FakeTools:
         return []
 
 
+class FakeReasoner:
+    def rewrite_query(self, query: str) -> tuple[QueryRewriteOutput, str]:
+        output = QueryRewriteOutput(rewritten_query=f"{query} in detail?", prompt_version="v1.0.0")
+        return output, "llm"
+
+
 def _settings() -> Settings:
     return Settings(
         documents_dir=Path("documents"),
@@ -48,3 +54,20 @@ def test_supported_answer_path() -> None:
     response = pipeline.ask("What is BERT pretraining?")
     assert response.safe_fail is False
     assert len(response.citations) > 0
+
+
+def test_reasoner_rewrite_is_used_and_traced() -> None:
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(),
+    )
+    response = pipeline.ask("What is BERT")
+    trace = trace_store.get(response.trace_id)
+    assert trace is not None
+    assert trace.rewritten_query == "What is BERT in detail?"
+    understand_events = [event for event in trace.events if event.stage == "understand"]
+    assert len(understand_events) == 1
+    assert understand_events[0].payload["rewrite_source"] == "llm"
