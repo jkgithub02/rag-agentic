@@ -1,0 +1,14 @@
+[
+  {
+    "query": "How does Attention Is All You Need remove recurrence from sequence modeling?",
+    "ground_truth": "The Transformer architecture replaces recurrence with self-attention and positional encoding."
+  },
+  {
+    "query": "What is the main pre-training objective used in BERT?",
+    "ground_truth": "BERT uses masked language modeling and next sentence prediction in pre-training."
+  },
+  {
+    "query": "What does retrieval-augmented generation add beyond a standalone language model?",
+    "ground_truth": "RAG augments generation with external retrieved documents to improve factual grounding."
+  }
+]

@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
+from uuid import uuid4
+
+from pydantic import BaseModel, Field
+
+
+class ValidationStatus(StrEnum):
+    PASS = "pass"
+    RETRY = "retry"
+    FAIL = "fail"
+
+
+class GroundingStatus(StrEnum):
+    SUPPORTED = "supported"
+    PARTIAL = "partial"
+    UNSUPPORTED = "unsupported"
+
+
+class EvidenceChunk(BaseModel):
+    chunk_id: str
+    source: str
+    text: str
+    score: float = 0.0
+
+
+class ValidationResult(BaseModel):
+    status: ValidationStatus
+    reason: str
+    confidence: float
+
+
+class GroundingResult(BaseModel):
+    status: GroundingStatus
+    reason: str
+
+
+class TraceEvent(BaseModel):
+    stage: str
+    payload: dict[str, Any]
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class PipelineTrace(BaseModel):
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
+    original_query: str
+    rewritten_query: str
+    retry_triggered: bool = False
+    retry_reason: str | None = None
+    final_grounding_status: GroundingStatus = GroundingStatus.UNSUPPORTED
+    events: list[TraceEvent] = Field(default_factory=list)
+
+
+class AskRequest(BaseModel):
+    query: str = Field(min_length=2)
+
+
+class AskResponse(BaseModel):
+    answer: str
+    citations: list[str] = Field(default_factory=list)
+    safe_fail: bool = False
+    trace_id: str
+
+
+class PipelineOutput(BaseModel):
+    answer: str
+    citations: list[str]
+    safe_fail: bool
+    trace_id: str

@@ -1,1 +1,21 @@
+# Documents folder
 documents/
+
+# Virtual environment
+.venv/
+
+# Local configuration
+.env
+
+# Generated data and reports
+.data/
+reports/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Python artifacts
+__pycache__/
+*.pyc
