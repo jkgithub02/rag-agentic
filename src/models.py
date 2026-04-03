@@ -70,6 +70,12 @@ class QueryRewriteOutput(BaseModel):
     prompt_version: str | None = None
 
 
+class GroundingCheckOutput(BaseModel):
+    status: GroundingStatus
+    reason: str
+    prompt_version: str | None = None
+
+
 class ConflictPolicy(StrEnum):
     ASK = "ask"
     REPLACE = "replace"

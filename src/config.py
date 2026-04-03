@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     safe_fail_message: str = (
         "I do not have sufficient evidence in the indexed documents to answer this confidently."
     )
+    clarification_message: str = (
+        "Please ask a more specific question about the uploaded or indexed documents."
+    )
 
 
 @lru_cache(maxsize=1)
