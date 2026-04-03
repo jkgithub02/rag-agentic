@@ -63,10 +63,3 @@ class AskResponse(BaseModel):
     citations: list[str] = Field(default_factory=list)
     safe_fail: bool = False
     trace_id: str
-
-
-class PipelineOutput(BaseModel):
-    answer: str
-    citations: list[str]
-    safe_fail: bool
-    trace_id: str

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from threading import Lock
 
-from agentic_rag.models import PipelineTrace
+from src.models import PipelineTrace
 
 
 class TraceStore:
-    """Thread-safe in-memory store for pipeline traces."""
+    """Simple in-memory trace store for API trace lookup."""
 
     def __init__(self) -> None:
         self._lock = Lock()

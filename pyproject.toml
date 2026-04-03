@@ -16,6 +16,7 @@ dependencies = [
     "streamlit>=1.56.0",
     "uvicorn[standard]>=0.42.0",
     "botocore[crt]>=1.42.82",
+    "qdrant-client>=1.17.1",
 ]
 
 [dependency-groups]

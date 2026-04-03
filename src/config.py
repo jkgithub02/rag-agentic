@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Runtime configuration loaded from environment variables."""
+    """Runtime settings for Agentic RAG."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
 
     documents_dir: Path = Path("documents")
-    index_file: Path = Path(".data/chunks.json")
-    benchmark_file: Path = Path("data/benchmark.json")
+    vector_db_path: Path = Path(".data/qdrant")
+    vector_collection_name: str = "paper_chunks"
+    vector_manifest_file: Path = Path(".data/vector_manifest.json")
 
     chunk_size: int = 1200
     chunk_overlap: int = 150

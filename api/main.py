@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 
-from agentic_rag.bootstrap import get_pipeline, get_trace_store
-from agentic_rag.models import AskRequest, AskResponse, PipelineTrace
+from src.bootstrap import get_pipeline, get_trace_store
+from src.models import AskRequest, AskResponse, PipelineTrace
 
 app = FastAPI(title="Agentic RAG API", version="0.1.0")
 
@@ -15,8 +15,7 @@ def health() -> dict[str, str]:
 
 @app.post("/ask", response_model=AskResponse)
 def ask(payload: AskRequest) -> AskResponse:
-    pipeline = get_pipeline()
-    return pipeline.ask(payload.query)
+    return get_pipeline().ask(payload.query)
 
 
 @app.get("/trace/{trace_id}", response_model=PipelineTrace)
