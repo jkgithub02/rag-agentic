@@ -9,6 +9,10 @@ import {
 const API_BASE =
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
 
+export function getApiBaseUrl(): string {
+    return API_BASE;
+}
+
 async function parseError(response: Response): Promise<string> {
     try {
         const payload = await response.json();
@@ -102,4 +106,18 @@ export async function listTraces(limit = 20): Promise<PipelineTrace[]> {
     }
 
     return (await response.json()) as PipelineTrace[];
+}
+
+export async function checkBackendHealth(): Promise<boolean> {
+    try {
+        const response = await fetch(`${API_BASE}/health`, { method: "GET" });
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = (await response.json()) as { status?: string };
+        return payload.status === "ok";
+    } catch {
+        return false;
+    }
 }

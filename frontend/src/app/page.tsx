@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { Tabs } from "@/components/tabs";
 import { ChatTab } from "@/features/chat/chat-tab";
@@ -12,11 +12,6 @@ type AppTab = "chat" | "upload" | "knowledge";
 export default function Home() {
   const [activeTab, setActiveTab] = useState<AppTab>("chat");
   const [refreshKey, setRefreshKey] = useState(0);
-
-  const generatedThreadId = useMemo(
-    () => `session-${crypto.randomUUID().slice(0, 8)}`,
-    [],
-  );
 
   return (
     <div className="relative min-h-screen overflow-hidden px-4 py-10 sm:px-8">
@@ -47,7 +42,7 @@ export default function Home() {
         />
 
         <section className="rounded-3xl border border-[var(--line)] bg-white/80 p-5 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.5)] backdrop-blur-sm sm:p-6">
-          {activeTab === "chat" ? <ChatTab defaultThreadId={generatedThreadId} /> : null}
+          {activeTab === "chat" ? <ChatTab defaultThreadId="" /> : null}
           {activeTab === "upload" ? (
             <UploadTab onKnowledgeChanged={() => setRefreshKey((value) => value + 1)} />
           ) : null}

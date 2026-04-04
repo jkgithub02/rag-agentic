@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     vector_collection_name: str = "document_chunks"
     allowed_upload_extensions: tuple[str, ...] = (".pdf", ".txt", ".md")
     upload_max_file_size_mb: int = 25
+    cors_allowed_origins: tuple[str, ...] = (
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+    )
 
     chunk_size: int = 1200
     chunk_overlap: int = 150

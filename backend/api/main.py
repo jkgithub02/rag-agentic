@@ -1,14 +1,24 @@
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
-from src.bootstrap import get_pipeline, get_trace_store, get_upload_service
+from src.bootstrap import get_pipeline, get_settings, get_trace_store, get_upload_service
 from src.core.models import AskRequest, AskResponse, ConflictPolicy, PipelineTrace, UploadResponse
 from src.orchestration.pipeline import AgenticPipeline
 from src.services.trace_store import TraceStore
 from src.services.upload_service import UploadService, UploadValidationError
 
 app = FastAPI(title="Agentic RAG API", version="0.1.0")
+
+_settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(_settings.cors_allowed_origins),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
