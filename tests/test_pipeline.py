@@ -148,6 +148,23 @@ class HydratingTools:
         ]
 
 
+class MismatchTools:
+    def search_chunks(self, query: str, top_k: int) -> list[EvidenceChunk]:
+        del query, top_k
+        return [
+            EvidenceChunk(
+                chunk_id="bert-0001",
+                source="bert.pdf",
+                text="BERT uses masked language modeling.",
+                score=0.8,
+            )
+        ]
+
+    def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
+        del chunk_ids
+        return []
+
+
 class FakeResponsePolicy:
     def __init__(self) -> None:
         self.calls: list[tuple[ResponseCategory, str, str | None, int]] = []
@@ -455,3 +472,28 @@ def test_response_policy_naturalizes_grounding_reason() -> None:
     assert len(verify_events) == 1
     assert verify_events[0].payload["reason_source"] == "llm-policy"
     assert any(call[0] == ResponseCategory.GROUNDING_REASON for call in policy.calls)
+
+
+def test_query_coverage_guard_forces_unsupported() -> None:
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=MismatchTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(
+            grounding_status=GroundingStatus.SUPPORTED,
+            grounding_reason="Looks supported.",
+            synthesis_answer="No quantum method is described for BERT.",
+            synthesis_chunk_ids=["bert-0001"],
+        ),
+    )
+
+    response = pipeline.ask("What quantum method does BERT use?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is True
+    assert response.citations == []
+    verify_events = [event for event in trace.events if event.stage == "verify_grounding"]
+    assert len(verify_events) == 1
+    assert verify_events[0].payload["grounding_source"] == "heuristic-insufficient-coverage"
