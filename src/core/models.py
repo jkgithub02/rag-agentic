@@ -63,6 +63,7 @@ class PipelineTrace(BaseModel):
 
 class AskRequest(BaseModel):
     query: str = Field(min_length=2)
+    thread_id: str | None = Field(default=None, min_length=1)
 
 
 class AskResponse(BaseModel):
@@ -77,6 +78,12 @@ class QueryRewriteOutput(BaseModel):
     prompt_version: str | None = None
 
 
+class QueryClarityOutput(BaseModel):
+    clarify_needed: bool
+    reason: str
+    prompt_version: str | None = None
+
+
 class GroundingCheckOutput(BaseModel):
     status: GroundingStatus
     reason: str
@@ -86,6 +93,13 @@ class GroundingCheckOutput(BaseModel):
 class AnswerSynthesisOutput(BaseModel):
     answer: str
     citation_chunk_ids: list[str] = Field(default_factory=list)
+    prompt_version: str | None = None
+
+
+class CoverageCheckOutput(BaseModel):
+    unsupported: bool
+    missing_terms: list[str] = Field(default_factory=list)
+    reason: str
     prompt_version: str | None = None
 
 

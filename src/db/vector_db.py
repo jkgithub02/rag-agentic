@@ -102,6 +102,13 @@ class VectorDbManager:
     def fetch_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
         return [self._chunk_lookup[cid] for cid in chunk_ids if cid in self._chunk_lookup]
 
+    def count_chunks_for_source(self, source_name: str) -> int:
+        return sum(1 for chunk in self._chunk_lookup.values() if chunk.source == source_name)
+
+    def delete_source(self, source_name: str) -> None:
+        with self._write_lock:
+            self._delete_source_locked(source_name)
+
     def _load_and_chunk_documents(self, docs_dir: Path) -> list[EvidenceChunk]:
         if not docs_dir.exists():
             return []

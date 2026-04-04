@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -32,15 +33,31 @@ class BedrockChatClient:
             ],
         }
 
-        try:
-            response = self._client.invoke_model(
-                modelId=self._settings.bedrock_chat_model_id,
-                contentType="application/json",
-                accept="application/json",
-                body=json.dumps(payload).encode("utf-8"),
-            )
-        except (ClientError, BotoCoreError) as exc:
-            raise LLMInvocationError(str(exc)) from exc
+        attempts = max(1, self._settings.reasoning_retry_attempts)
+        backoff = max(0.0, self._settings.reasoning_retry_backoff_seconds)
+        last_exc: Exception | None = None
+        response = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                response = self._client.invoke_model(
+                    modelId=self._settings.bedrock_chat_model_id,
+                    contentType="application/json",
+                    accept="application/json",
+                    body=json.dumps(payload).encode("utf-8"),
+                )
+                break
+            except (ClientError, BotoCoreError) as exc:
+                last_exc = exc
+                if attempt == attempts:
+                    break
+                if backoff > 0:
+                    time.sleep(backoff * attempt)
+
+        if response is None:
+            if last_exc is not None:
+                raise LLMInvocationError(str(last_exc)) from last_exc
+            raise LLMInvocationError("Bedrock invocation failed without exception detail.")
 
         raw = response.get("body")
         if raw is None:

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from src.core.config import Settings
 from src.core.models import (
     EvidenceChunk,
     GroundingResult,
     GroundingStatus,
+    PipelineTrace,
     QueryRewriteOutput,
     ResponseCategory,
 )
@@ -29,7 +32,15 @@ class FakeTools:
         ]
 
     def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
-        del chunk_ids
+        if "bert-0001" in chunk_ids:
+            return [
+                EvidenceChunk(
+                    chunk_id="bert-0001",
+                    source="bert.pdf",
+                    text="BERT uses masked language modeling.",
+                    score=0.9,
+                )
+            ]
         return []
 
 
@@ -41,11 +52,15 @@ class FakeReasoner:
         grounding_reason: str = "Grounded in evidence.",
         synthesis_answer: str = "BERT pretraining uses masked language modeling.",
         synthesis_chunk_ids: list[str] | None = None,
+        coverage_insufficient: bool = False,
+        coverage_missing_terms: list[str] | None = None,
     ) -> None:
         self._grounding_status = grounding_status
         self._grounding_reason = grounding_reason
         self._synthesis_answer = synthesis_answer
         self._synthesis_chunk_ids = synthesis_chunk_ids or ["bert-0001"]
+        self._coverage_insufficient = coverage_insufficient
+        self._coverage_missing_terms = coverage_missing_terms or []
 
     def rewrite_query(self, query: str) -> tuple[QueryRewriteOutput, str]:
         output = QueryRewriteOutput(rewritten_query=f"{query} in detail?", prompt_version="v1.0.0")
@@ -87,6 +102,19 @@ class FakeReasoner:
     ) -> tuple[str, list[str], str, str | None]:
         del query, chunks
         return self._synthesis_answer, self._synthesis_chunk_ids, "llm", "v1.0.0"
+
+    def detect_insufficient_coverage(
+        self,
+        *,
+        query: str,
+        answer: str,
+        chunks: list[EvidenceChunk],
+    ) -> tuple[bool, list[str], str, str | None]:
+        del query, answer, chunks
+        return self._coverage_insufficient, self._coverage_missing_terms, "llm", "v1.0.0"
+
+    def assess_query_clarity(self, *, query: str) -> tuple[bool, str, str | None]:
+        return (query.strip().lower() in {"hi", "hello", "hey"}, "clarity check", "v1.0.0")
 
 
 class AmbiguousTools:
@@ -161,7 +189,15 @@ class MismatchTools:
         ]
 
     def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
-        del chunk_ids
+        if "bert-0001" in chunk_ids:
+            return [
+                EvidenceChunk(
+                    chunk_id="bert-0001",
+                    source="bert.pdf",
+                    text="BERT uses masked language modeling.",
+                    score=0.9,
+                )
+            ]
         return []
 
 
@@ -192,13 +228,23 @@ def _settings() -> Settings:
 
 
 def test_safe_fail_path() -> None:
-    pipeline = AgenticPipeline(settings=_settings(), tools=FakeTools(), trace_store=TraceStore())
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=TraceStore(),
+        reasoner=FakeReasoner(),
+    )
     response = pipeline.ask("What quantum method does BERT use?")
     assert response.safe_fail is True
 
 
 def test_supported_answer_path() -> None:
-    pipeline = AgenticPipeline(settings=_settings(), tools=FakeTools(), trace_store=TraceStore())
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=TraceStore(),
+        reasoner=FakeReasoner(),
+    )
     response = pipeline.ask("What is BERT pretraining?")
     assert response.safe_fail is False
     assert len(response.citations) > 0
@@ -223,7 +269,12 @@ def test_reasoner_rewrite_is_used_and_traced() -> None:
 
 def test_vague_query_returns_clarification() -> None:
     trace_store = TraceStore()
-    pipeline = AgenticPipeline(settings=_settings(), tools=FakeTools(), trace_store=trace_store)
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(),
+    )
     response = pipeline.ask("hi")
     trace = trace_store.get(response.trace_id)
 
@@ -356,7 +407,7 @@ def test_reasoner_generation_is_used_and_traced() -> None:
     assert generate_events[0].payload["generation_source"] == "llm"
 
 
-def test_reasoner_generation_unknown_chunk_ids_fallback_to_top_chunks() -> None:
+def test_reasoner_generation_unknown_chunk_ids_raises_error() -> None:
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -364,9 +415,8 @@ def test_reasoner_generation_unknown_chunk_ids_fallback_to_top_chunks() -> None:
         trace_store=trace_store,
         reasoner=FakeReasoner(synthesis_chunk_ids=["missing-id"]),
     )
-    response = pipeline.ask("What is BERT pretraining?")
-
-    assert response.citations == ["bert.pdf#bert-0001"]
+    with pytest.raises(ValueError):
+        pipeline.ask("What is BERT pretraining?")
 
 
 def test_hydrate_tool_is_called_on_supported_path() -> None:
@@ -389,7 +439,7 @@ def test_hydrate_tool_is_called_on_supported_path() -> None:
     assert "hydrate" in stages
 
 
-def test_hydrate_fallback_uses_retrieved_chunks_when_fetch_empty() -> None:
+def test_hydrate_empty_fetch_raises_error() -> None:
     trace_store = TraceStore()
     tools = HydratingTools(return_fetched=False)
     pipeline = AgenticPipeline(
@@ -401,15 +451,8 @@ def test_hydrate_fallback_uses_retrieved_chunks_when_fetch_empty() -> None:
             synthesis_chunk_ids=["bert-0002"],
         ),
     )
-
-    response = pipeline.ask("What is BERT pretraining?")
-    trace = trace_store.get(response.trace_id)
-
-    assert trace is not None
-    assert response.citations == ["bert.pdf#bert-0002"]
-    hydrate_events = [event for event in trace.events if event.stage == "hydrate"]
-    assert len(hydrate_events) == 1
-    assert hydrate_events[0].payload["used_fallback"] is True
+    with pytest.raises(ValueError):
+        pipeline.ask("What is BERT pretraining?")
 
 
 def test_response_policy_used_for_clarification() -> None:
@@ -419,6 +462,7 @@ def test_response_policy_used_for_clarification() -> None:
         settings=_settings(),
         tools=FakeTools(),
         trace_store=trace_store,
+        reasoner=FakeReasoner(),
         response_policy=policy,
     )
 
@@ -485,6 +529,8 @@ def test_query_coverage_guard_forces_unsupported() -> None:
             grounding_reason="Looks supported.",
             synthesis_answer="No quantum method is described for BERT.",
             synthesis_chunk_ids=["bert-0001"],
+            coverage_insufficient=True,
+            coverage_missing_terms=["quantum"],
         ),
     )
 
@@ -496,4 +542,85 @@ def test_query_coverage_guard_forces_unsupported() -> None:
     assert response.citations == []
     verify_events = [event for event in trace.events if event.stage == "verify_grounding"]
     assert len(verify_events) == 1
-    assert verify_events[0].payload["grounding_source"] == "heuristic-insufficient-coverage"
+    assert verify_events[0].payload["grounding_source"] == "llm-insufficient-coverage"
+
+
+def test_pipeline_invokes_graph_with_thread_id_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeGraph:
+        def __init__(self) -> None:
+            self.invocations: list[tuple[dict[str, object], dict[str, object]]] = []
+
+        def invoke(
+            self,
+            payload: dict[str, object],
+            config: dict[str, object],
+        ) -> dict[str, object]:
+            self.invocations.append((payload, config))
+            trace = PipelineTrace(original_query="What is BERT?", rewritten_query="What is BERT?")
+            return {
+                "answer": "BERT pretraining uses masked language modeling.",
+                "citations": ["bert.pdf#bert-0001"],
+                "safe_fail": False,
+                "trace": trace,
+            }
+
+    fake_graph = FakeGraph()
+    monkeypatch.setattr(
+        "src.orchestration.pipeline.build_pipeline_graph",
+        lambda *, nodes, edges: fake_graph,
+    )
+
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=TraceStore(),
+        reasoner=FakeReasoner(),
+    )
+
+    response = pipeline.ask("What is BERT?")
+
+    assert response.safe_fail is False
+    assert len(fake_graph.invocations) == 1
+    payload, config = fake_graph.invocations[0]
+    assert payload == {"query": "What is BERT?"}
+    assert "configurable" in config
+    assert isinstance(config["configurable"].get("thread_id"), str)
+    assert config["configurable"]["thread_id"]
+
+
+def test_pipeline_uses_provided_thread_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeGraph:
+        def __init__(self) -> None:
+            self.invocations: list[tuple[dict[str, object], dict[str, object]]] = []
+
+        def invoke(
+            self,
+            payload: dict[str, object],
+            config: dict[str, object],
+        ) -> dict[str, object]:
+            self.invocations.append((payload, config))
+            trace = PipelineTrace(original_query="What is BERT?", rewritten_query="What is BERT?")
+            return {
+                "answer": "BERT pretraining uses masked language modeling.",
+                "citations": ["bert.pdf#bert-0001"],
+                "safe_fail": False,
+                "trace": trace,
+            }
+
+    fake_graph = FakeGraph()
+    monkeypatch.setattr(
+        "src.orchestration.pipeline.build_pipeline_graph",
+        lambda *, nodes, edges: fake_graph,
+    )
+
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=TraceStore(),
+        reasoner=FakeReasoner(),
+    )
+
+    pipeline.ask("What is BERT?", thread_id="session-123")
+
+    _, config = fake_graph.invocations[0]
+    assert config["configurable"]["thread_id"] == "session-123"

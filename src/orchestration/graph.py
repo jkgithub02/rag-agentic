@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from src.orchestration.edges import PipelineEdges
@@ -31,7 +32,12 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
     graph.add_conditional_edges(
         "validate",
         edges.route_after_validate,
-        {"retry": "retry", "retry_exhausted": "retry_exhausted", "hydrate": "hydrate"},
+        {
+            "retry": "retry",
+            "retry_exhausted": "retry_exhausted",
+            "generate": "generate",
+            "hydrate": "hydrate",
+        },
     )
     graph.add_edge("retry", "retrieve")
     graph.add_edge("retry_exhausted", "generate")
@@ -39,4 +45,4 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
     graph.add_edge("generate", "verify")
     graph.add_edge("verify", "finish")
     graph.add_edge("finish", END)
-    return graph.compile()
+    return graph.compile(checkpointer=InMemorySaver())

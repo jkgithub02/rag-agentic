@@ -72,6 +72,54 @@ class UploadService:
             chunks_added=chunks_added,
         )
 
+    def list_documents(self) -> list[dict[str, int | str]]:
+        docs_dir = self._settings.documents_dir
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        supported = {ext.lower() for ext in self._settings.allowed_upload_extensions}
+
+        docs = [
+            path
+            for path in docs_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in supported
+        ]
+        docs.sort(key=lambda path: path.name.lower())
+
+        return [
+            {
+                "filename": path.name,
+                "size_bytes": path.stat().st_size,
+                "chunks_indexed": self._vector_db.count_chunks_for_source(path.name),
+            }
+            for path in docs
+        ]
+
+    def delete_document(self, source_name: str) -> bool:
+        clean_name = self._sanitize_filename(source_name)
+        target = self._settings.documents_dir / clean_name
+        if not target.exists() or not target.is_file():
+            return False
+
+        target.unlink()
+        self._vector_db.delete_source(clean_name)
+        return True
+
+    def delete_all_documents(self) -> int:
+        docs_dir = self._settings.documents_dir
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        supported = {ext.lower() for ext in self._settings.allowed_upload_extensions}
+
+        to_delete = [
+            path
+            for path in docs_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in supported
+        ]
+        for path in to_delete:
+            path.unlink()
+
+        # Rebuild once for consistency rather than issuing many per-source deletions.
+        self._vector_db.build_index()
+        return len(to_delete)
+
     def _validate_upload(self, filename: str, content: bytes) -> None:
         suffix = Path(filename).suffix.lower()
         supported = {ext.lower() for ext in self._settings.allowed_upload_extensions}

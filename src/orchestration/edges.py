@@ -22,4 +22,6 @@ class PipelineEdges:
             return "retry"
         if state["validation"].status == ValidationStatus.RETRY:
             return "retry_exhausted"
+        if state["validation"].status == ValidationStatus.FAIL:
+            return "generate"
         return "hydrate"

@@ -21,9 +21,24 @@ def get_trace_store() -> TraceStore:
 @lru_cache(maxsize=1)
 def get_vector_db() -> VectorDbManager:
     settings = get_settings()
-    vector_db = VectorDbManager(settings)
-    vector_db.build_index()
-    return vector_db
+    try:
+        vector_db = VectorDbManager(settings)
+        vector_db.build_index()
+        return vector_db
+    except Exception as exc:
+        if _is_vector_db_lock_error(exc):
+            raise RuntimeError(
+                "Vector database path is locked by another running process. "
+                f"Path: {settings.vector_db_path}. "
+                "On Windows, local Qdrant path mode is single-process. "
+                "Stop other backend/Streamlit Python processes and retry."
+            ) from exc
+        raise
+
+
+def _is_vector_db_lock_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "lock" in message or "already used by another process" in message
 
 
 @lru_cache(maxsize=1)

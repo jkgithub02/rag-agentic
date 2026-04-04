@@ -18,4 +18,3 @@ class PipelineState(TypedDict, total=False):
     grounding: GroundingResult
     trace: PipelineTrace
     chunks: list[EvidenceChunk]
-    evidence_chunks: list[EvidenceChunk]

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 from src.agent.tools import AgentTools
 from src.core.config import Settings
 from src.core.models import AskResponse, PipelineTrace
@@ -22,8 +24,6 @@ class AgenticPipeline:
         reasoner: QueryReasoner | None = None,
         response_policy: ResponsePolicy | None = None,
     ) -> None:
-        self._settings = settings
-        self._tools = tools
         self._trace_store = trace_store
         self._nodes = PipelineNodes(
             settings=settings,
@@ -34,8 +34,12 @@ class AgenticPipeline:
         self._edges = PipelineEdges(settings)
         self._graph = build_pipeline_graph(nodes=self._nodes, edges=self._edges)
 
-    def ask(self, query: str) -> AskResponse:
-        state = self._graph.invoke({"query": query})
+    def ask(self, query: str, *, thread_id: str | None = None) -> AskResponse:
+        run_thread_id = thread_id or str(uuid4())
+        state = self._graph.invoke(
+            {"query": query},
+            config={"configurable": {"thread_id": run_thread_id}},
+        )
         trace: PipelineTrace = state["trace"]
         self._trace_store.save(trace)
 

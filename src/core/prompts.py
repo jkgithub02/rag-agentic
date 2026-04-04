@@ -12,6 +12,15 @@ def rewrite_query_prompt(query: str) -> str:
     )
 
 
+def query_clarity_prompt(*, query: str) -> str:
+    return (
+        "Decide whether this query needs clarification before retrieval. "
+        "Return JSON with keys clarify_needed, reason, prompt_version.\n"
+        f"Prompt version: {PROMPT_VERSION}\n"
+        f"Query: {query}"
+    )
+
+
 def retry_rewrite_prompt(*, original_query: str, retry_reason: str, evidence: str) -> str:
     return (
         "Rewrite the query for a retry retrieval pass. "
@@ -40,6 +49,19 @@ def grounding_prompt(*, answer: str, citations: list[str], evidence: str) -> str
         f"Prompt version: {PROMPT_VERSION}\n"
         f"Answer: {answer}\n"
         f"Citations: {citations}\n"
+        f"Evidence:\n{evidence}"
+    )
+
+
+def coverage_check_prompt(*, query: str, answer: str, evidence: str) -> str:
+    return (
+        "Decide if the answer should be marked unsupported "
+        "because evidence coverage is insufficient. "
+        "Use only the query, answer, and evidence. "
+        "Return JSON with keys unsupported, missing_terms, reason, prompt_version.\n"
+        f"Prompt version: {PROMPT_VERSION}\n"
+        f"Query: {query}\n"
+        f"Answer: {answer}\n"
         f"Evidence:\n{evidence}"
     )
 

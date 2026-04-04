@@ -23,6 +23,16 @@ class FakeVectorDb:
         )
         return 2
 
+    def count_chunks_for_source(self, source_name: str) -> int:
+        return 2 if source_name == "paper.md" else 0
+
+    def delete_source(self, source_name: str) -> None:
+        self.calls.append({"deleted_source": source_name})
+
+    def build_index(self) -> int:
+        self.calls.append({"rebuilt": True})
+        return 0
+
 
 def test_upload_rejects_unsupported_extension(tmp_path: Path) -> None:
     service = UploadService(
@@ -101,3 +111,57 @@ def test_upload_replace_overwrites_existing_file(tmp_path: Path) -> None:
     assert response.stored_filename == "paper.md"
     assert target.read_bytes() == b"new"
     assert vector_db.calls[0]["replace_existing"] is True
+
+
+def test_list_documents_returns_supported_files_with_chunk_counts(tmp_path: Path) -> None:
+    vector_db = FakeVectorDb()
+    service = UploadService(
+        settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
+        vector_db=vector_db,
+    )
+
+    (tmp_path / "paper.md").write_text("content", encoding="utf-8")
+    (tmp_path / "ignore.csv").write_text("content", encoding="utf-8")
+
+    docs = service.list_documents()
+
+    assert len(docs) == 1
+    assert docs[0]["filename"] == "paper.md"
+    assert docs[0]["chunks_indexed"] == 2
+
+
+def test_delete_document_removes_file_and_index_source(tmp_path: Path) -> None:
+    vector_db = FakeVectorDb()
+    service = UploadService(
+        settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
+        vector_db=vector_db,
+    )
+
+    target = tmp_path / "paper.md"
+    target.write_text("content", encoding="utf-8")
+
+    deleted = service.delete_document("paper.md")
+
+    assert deleted is True
+    assert not target.exists()
+    assert any(call.get("deleted_source") == "paper.md" for call in vector_db.calls)
+
+
+def test_delete_all_documents_removes_supported_files_and_rebuilds_index(tmp_path: Path) -> None:
+    vector_db = FakeVectorDb()
+    service = UploadService(
+        settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
+        vector_db=vector_db,
+    )
+
+    (tmp_path / "paper.md").write_text("content", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("content", encoding="utf-8")
+    (tmp_path / "keep.json").write_text("content", encoding="utf-8")
+
+    deleted_count = service.delete_all_documents()
+
+    assert deleted_count == 2
+    assert not (tmp_path / "paper.md").exists()
+    assert not (tmp_path / "notes.txt").exists()
+    assert (tmp_path / "keep.json").exists()
+    assert any(call.get("rebuilt") is True for call in vector_db.calls)

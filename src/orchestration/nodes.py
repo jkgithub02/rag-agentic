@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-import re
-from collections import Counter
-
 from src.agent.tools import AgentTools
 from src.core.config import Settings
 from src.core.models import (
-    EvidenceChunk,
     GroundingResult,
     GroundingStatus,
     PipelineTrace,
-    QueryRewriteOutput,
     ResponseCategory,
     TraceEvent,
     ValidationResult,
@@ -30,6 +25,8 @@ class PipelineNodes:
         reasoner: QueryReasoner | None,
         response_policy: ResponsePolicy | None,
     ) -> None:
+        if reasoner is None:
+            raise ValueError("PipelineNodes requires a QueryReasoner instance.")
         self._settings = settings
         self._tools = tools
         self._reasoner = reasoner
@@ -37,18 +34,11 @@ class PipelineNodes:
 
     def understand(self, state: PipelineState) -> PipelineState:
         original_query = " ".join(state["query"].split())
-        rewrite_result: QueryRewriteOutput | None = None
-        rewrite_source = "fallback-no-reasoner"
-
-        if self._reasoner is not None:
-            rewrite_result, rewrite_source = self._reasoner.rewrite_query(original_query)
-
-        rewritten_query = (
-            rewrite_result.rewritten_query
-            if rewrite_result is not None
-            else original_query.rstrip("?") + "?"
+        rewrite_result, rewrite_source = self._reasoner.rewrite_query(original_query)
+        rewritten_query = rewrite_result.rewritten_query
+        clarify_needed, clarity_reason, clarity_prompt_version = (
+            self._reasoner.assess_query_clarity(query=original_query)
         )
-        clarify_needed = self._needs_clarification(original_query)
         trace = PipelineTrace(original_query=original_query, rewritten_query=rewritten_query)
         self._event(
             trace,
@@ -57,8 +47,10 @@ class PipelineNodes:
                 "original": original_query,
                 "rewritten": rewritten_query,
                 "rewrite_source": rewrite_source,
-                "prompt_version": rewrite_result.prompt_version if rewrite_result else None,
+                "prompt_version": rewrite_result.prompt_version,
                 "clarify_needed": clarify_needed,
+                "clarify_reason": clarity_reason,
+                "clarify_prompt_version": clarity_prompt_version,
             },
         )
         return {
@@ -151,24 +143,14 @@ class PipelineNodes:
 
     def retry(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
-        sources = [chunk.source for chunk in state["chunks"]]
         evidence = [chunk.text[:220] for chunk in state["chunks"][:3]]
-        rewrite_source = "fallback-no-reasoner"
-        prompt_version: str | None = None
-
-        if self._reasoner is not None:
-            rewrite_result, rewrite_source = self._reasoner.rewrite_for_retry(
-                original_query=state["original_query"],
-                retry_reason=state["validation"].reason,
-                evidence=evidence,
-            )
-            rewritten = rewrite_result.rewritten_query
-            prompt_version = rewrite_result.prompt_version
-        elif sources:
-            dominant_source, _ = Counter(sources).most_common(1)[0]
-            rewritten = f"{state['original_query']} Focus on {dominant_source}."
-        else:
-            rewritten = f"{state['original_query']} Use one specific paper title."
+        rewrite_result, rewrite_source = self._reasoner.rewrite_for_retry(
+            original_query=state["original_query"],
+            retry_reason=state["validation"].reason,
+            evidence=evidence,
+        )
+        rewritten = rewrite_result.rewritten_query
+        prompt_version: str | None = rewrite_result.prompt_version
 
         retry_count = state["retry_count"] + 1
         trace.retry_triggered = True
@@ -204,36 +186,24 @@ class PipelineNodes:
         selected_ids = [chunk.chunk_id for chunk in state["chunks"][:2]]
         self._event(trace, "tool_fetch_chunks_by_ids", {"chunk_ids": selected_ids})
         fetched = self._tools.fetch_chunks_by_ids(selected_ids)
-        evidence_chunks = fetched if fetched else state["chunks"][:2]
+        if not fetched:
+            raise ValueError("fetch_chunks_by_ids returned no evidence chunks.")
         self._event(
             trace,
             "hydrate",
             {
                 "selected_ids": selected_ids,
                 "fetched_ids": [chunk.chunk_id for chunk in fetched],
-                "used_fallback": not bool(fetched),
             },
         )
-        return {"evidence_chunks": evidence_chunks, "trace": trace}
+        return {"chunks": fetched, "trace": trace}
 
     def generate(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         if state["validation"].status == ValidationStatus.FAIL:
-            answer = self._settings.safe_fail_message
-            response_category = ResponseCategory.SAFE_FAIL
-            response_source = "settings-default"
-            prompt_version: str | None = None
-            if state["validation"].reason.startswith("Retry budget exhausted"):
-                response_category = ResponseCategory.RETRY_EXHAUSTED
-            if self._response_policy is not None:
-                answer, prompt_version = self._response_policy.render(
-                    category=response_category,
-                    query=state["original_query"],
-                    reason=state["validation"].reason,
-                    evidence_count=len(state.get("chunks", [])),
-                )
-                response_source = "llm-policy"
-
+            answer, response_category, response_source, prompt_version = (
+                self._generate_safe_fail(state)
+            )
             self._event(
                 trace,
                 "generate",
@@ -247,26 +217,7 @@ class PipelineNodes:
             )
             return {"answer": answer, "citations": [], "safe_fail": True, "trace": trace}
 
-        chunks = state.get("evidence_chunks") or state["chunks"][:2]
-        chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
-        generation_source = "fallback-no-reasoner"
-        prompt_version: str | None = None
-
-        if self._reasoner is not None:
-            answer, citation_chunk_ids, generation_source, prompt_version = (
-                self._reasoner.synthesize_answer(query=state["original_query"], chunks=chunks)
-            )
-            citations = [
-                f"{chunk_by_id[chunk_id].source}#{chunk_id}"
-                for chunk_id in citation_chunk_ids
-                if chunk_id in chunk_by_id
-            ]
-            if not citations:
-                citations = [f"{chunk.source}#{chunk.chunk_id}" for chunk in chunks]
-        else:
-            citations = [f"{chunk.source}#{chunk.chunk_id}" for chunk in chunks]
-            answer_lines = [f"- [{chunk.chunk_id}] {chunk.text[:220]}" for chunk in chunks]
-            answer = "Question: " + state["original_query"] + "\n\n" + "\n".join(answer_lines)
+        answer, citations, generation_source, prompt_version = self._generate_supported(state)
 
         self._event(
             trace,
@@ -285,50 +236,40 @@ class PipelineNodes:
         answer = state["answer"]
         citations = state["citations"]
         safe_fail = state["safe_fail"]
+        reason_source: str | None = None
+        reason_prompt_version: str | None = None
         coverage_missing_terms: list[str] = []
+        coverage_source: str | None = None
+        coverage_prompt_version: str | None = None
 
         if state["safe_fail"]:
             grounding = GroundingResult(status=GroundingStatus.UNSUPPORTED, reason="No evidence.")
             grounding_source = "pre-gated-safe-fail"
             prompt_version: str | None = None
         else:
-            grounding_source = "fallback-no-reasoner"
-            prompt_version: str | None = None
             evidence = [chunk.text[:240] for chunk in state.get("chunks", [])[:3]]
-
-            if self._reasoner is not None:
-                grounding, grounding_source, prompt_version = self._reasoner.assess_grounding(
-                    answer=answer,
-                    citations=citations,
-                    evidence=evidence,
-                )
-            elif citations:
-                grounding = GroundingResult(
-                    status=GroundingStatus.SUPPORTED,
-                    reason="Citations present.",
-                )
-            else:
-                grounding = GroundingResult(status=GroundingStatus.PARTIAL, reason="No citations.")
-
-            evidence_for_coverage = state.get("evidence_chunks") or state.get("chunks", [])
-            insufficient_coverage, coverage_missing_terms = self._has_insufficient_coverage(
+            grounding, grounding_source, prompt_version = self._reasoner.assess_grounding(
                 answer=answer,
-                query=state["original_query"],
-                chunks=evidence_for_coverage,
+                citations=citations,
+                evidence=evidence,
             )
-            if grounding.status == GroundingStatus.SUPPORTED and insufficient_coverage:
-                grounding = GroundingResult(
-                    status=GroundingStatus.UNSUPPORTED,
-                    reason=(
-                        "Evidence does not cover key query terms: "
-                        + ", ".join(coverage_missing_terms)
-                    ),
-                )
-                grounding_source = "heuristic-insufficient-coverage"
-                prompt_version = None
 
-            reason_source = "model-or-fallback"
-            reason_prompt_version: str | None = None
+            (
+                grounding,
+                grounding_source,
+                prompt_version,
+                coverage_missing_terms,
+                coverage_source,
+                coverage_prompt_version,
+            ) = self._apply_coverage_gate(
+                state=state,
+                answer=answer,
+                grounding=grounding,
+                grounding_source=grounding_source,
+                prompt_version=prompt_version,
+            )
+
+            reason_source = "model"
             if self._response_policy is not None:
                 natural_reason, reason_prompt_version = self._response_policy.render(
                     category=ResponseCategory.GROUNDING_REASON,
@@ -355,10 +296,10 @@ class PipelineNodes:
         payload["grounding_source"] = grounding_source
         payload["prompt_version"] = prompt_version
         payload["coverage_missing_terms"] = coverage_missing_terms
-        payload["reason_source"] = reason_source if "reason_source" in locals() else None
-        payload["reason_prompt_version"] = (
-            reason_prompt_version if "reason_prompt_version" in locals() else None
-        )
+        payload["coverage_source"] = coverage_source
+        payload["coverage_prompt_version"] = coverage_prompt_version
+        payload["reason_source"] = reason_source
+        payload["reason_prompt_version"] = reason_prompt_version
 
         self._event(trace, "verify_grounding", payload)
         return {
@@ -379,96 +320,84 @@ class PipelineNodes:
     def _event(trace: PipelineTrace, stage: str, payload: dict[str, object]) -> None:
         trace.events.append(TraceEvent(stage=stage, payload=payload))
 
-    @staticmethod
-    def _needs_clarification(query: str) -> bool:
-        normalized = " ".join(query.lower().split())
-        vague_inputs = {
-            "hi",
-            "hello",
-            "hey",
-            "yo",
-            "sup",
-            "help",
-            "?",
-            "what",
-            "why",
-            "how",
-        }
-        if normalized in vague_inputs:
-            return True
-        return len(normalized) < 4
+    def _generate_safe_fail(
+        self, state: PipelineState
+    ) -> tuple[str, ResponseCategory, str, str | None]:
+        answer = self._settings.safe_fail_message
+        response_category = ResponseCategory.SAFE_FAIL
+        response_source = "settings-default"
+        prompt_version: str | None = None
+        if state["validation"].reason.startswith("Retry budget exhausted"):
+            response_category = ResponseCategory.RETRY_EXHAUSTED
+        if self._response_policy is not None:
+            answer, prompt_version = self._response_policy.render(
+                category=response_category,
+                query=state["original_query"],
+                reason=state["validation"].reason,
+                evidence_count=len(state.get("chunks", [])),
+            )
+            response_source = "llm-policy"
+        return answer, response_category, response_source, prompt_version
 
-    @classmethod
-    def _has_insufficient_coverage(
-        cls,
+    def _generate_supported(
+        self, state: PipelineState
+    ) -> tuple[str, list[str], str, str | None]:
+        chunks = state.get("chunks", [])
+        chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
+        answer, citation_chunk_ids, generation_source, prompt_version = (
+            self._reasoner.synthesize_answer(query=state["original_query"], chunks=chunks)
+        )
+        citations = [
+            f"{chunk_by_id[chunk_id].source}#{chunk_id}"
+            for chunk_id in citation_chunk_ids
+            if chunk_id in chunk_by_id
+        ]
+        if len(citations) != len(citation_chunk_ids):
+            raise ValueError(
+                "synthesize_answer returned citation_chunk_ids not present in evidence."
+            )
+        return answer, citations, generation_source, prompt_version
+
+    def _apply_coverage_gate(
+        self,
         *,
+        state: PipelineState,
         answer: str,
-        query: str,
-        chunks: list[EvidenceChunk],
-    ) -> tuple[bool, list[str]]:
-        answer_lower = answer.lower()
-        no_evidence_markers = (
-            "no information",
-            "does not mention",
-            "not mentioned",
-            "not provided",
-            "cannot find",
-            "not in the evidence",
-        )
-        denial_pattern = re.search(
-            r"\bno\b.*\b(described|evidence|information|mention|found)\b",
-            answer_lower,
-        )
-        has_denial_signal = any(marker in answer_lower for marker in no_evidence_markers) or bool(
-            denial_pattern
-        )
-        if not has_denial_signal:
-            return False, []
+        grounding: GroundingResult,
+        grounding_source: str,
+        prompt_version: str | None,
+    ) -> tuple[GroundingResult, str, str | None, list[str], str | None, str | None]:
+        coverage_missing_terms: list[str] = []
+        coverage_source: str | None = None
+        coverage_prompt_version: str | None = None
 
-        query_terms = cls._key_terms(query)
-        if not query_terms:
-            return True, []
+        evidence_for_coverage = state.get("chunks", [])
+        (
+            insufficient_coverage,
+            coverage_missing_terms,
+            coverage_source,
+            coverage_prompt_version,
+        ) = self._reasoner.detect_insufficient_coverage(
+            query=state["original_query"],
+            answer=answer,
+            chunks=evidence_for_coverage,
+        )
 
-        evidence_text = " ".join(chunk.text.lower() for chunk in chunks)
-        missing = [term for term in query_terms if term not in evidence_text]
-        if missing:
-            return True, missing
-        return True, []
+        if grounding.status == GroundingStatus.SUPPORTED and insufficient_coverage:
+            grounding = GroundingResult(
+                status=GroundingStatus.UNSUPPORTED,
+                reason=(
+                    "Evidence does not cover key query terms: " + ", ".join(coverage_missing_terms)
+                ),
+            )
+            grounding_source = "llm-insufficient-coverage"
+            prompt_version = None
 
-    @staticmethod
-    def _key_terms(text: str) -> list[str]:
-        stopwords = {
-            "what",
-            "which",
-            "where",
-            "when",
-            "why",
-            "how",
-            "does",
-            "do",
-            "is",
-            "are",
-            "the",
-            "a",
-            "an",
-            "of",
-            "to",
-            "in",
-            "on",
-            "for",
-            "and",
-            "or",
-            "use",
-            "uses",
-            "used",
-            "method",
-            "methods",
-        }
-        terms = re.findall(r"[a-zA-Z]{4,}", text.lower())
-        deduped: list[str] = []
-        for term in terms:
-            if term in stopwords:
-                continue
-            if term not in deduped:
-                deduped.append(term)
-        return deduped
+        return (
+            grounding,
+            grounding_source,
+            prompt_version,
+            coverage_missing_terms,
+            coverage_source,
+            coverage_prompt_version,
+        )

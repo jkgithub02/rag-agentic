@@ -25,22 +25,7 @@ class ResponsePolicy:
             reason=reason,
             evidence_count=evidence_count,
         )
-        try:
-            text = self._llm_client.invoke_text(prompt).strip()
-        except LLMInvocationError:
-            text = self._fallback_text(category=category, query=query, reason=reason)
+        text = self._llm_client.invoke_text(prompt).strip()
         if not text:
-            text = self._fallback_text(category=category, query=query, reason=reason)
+            raise LLMInvocationError("Response policy returned empty text.")
         return text, PROMPT_VERSION
-
-    @staticmethod
-    def _fallback_text(*, category: ResponseCategory, query: str, reason: str | None) -> str:
-        if category == ResponseCategory.CLARIFICATION:
-            return "Could you share a bit more detail about what you want to know?"
-        if category == ResponseCategory.RETRY_EXHAUSTED:
-            return "I could not confidently disambiguate that request from the available evidence."
-        if category == ResponseCategory.SAFE_FAIL:
-            return "I do not have enough evidence in the indexed documents to answer confidently."
-        if category == ResponseCategory.GROUNDING_REASON:
-            return reason or "The answer could not be fully grounded in the available evidence."
-        return reason or query

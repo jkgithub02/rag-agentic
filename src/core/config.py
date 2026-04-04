@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     reasoning_enabled: bool = True
     reasoning_temperature: float = 0.0
     reasoning_max_tokens: int = 300
+    reasoning_retry_attempts: int = 3
+    reasoning_retry_backoff_seconds: float = 0.35
     embedding_provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
@@ -26,7 +28,6 @@ class Settings(BaseSettings):
     documents_dir: Path = Path("documents")
     vector_db_path: Path = Path(".data/qdrant")
     vector_collection_name: str = "paper_chunks"
-    vector_manifest_file: Path = Path(".data/vector_manifest.json")
     allowed_upload_extensions: tuple[str, ...] = (".pdf", ".txt", ".md")
     upload_max_file_size_mb: int = 25
 
