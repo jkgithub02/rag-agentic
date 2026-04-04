@@ -25,9 +25,12 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
 
-    documents_dir: Path = Path("documents")
-    vector_db_path: Path = Path(".data/qdrant")
-    vector_collection_name: str = "paper_chunks"
+    _backend_root: Path = Path(__file__).resolve().parents[2]
+    _project_root: Path = _backend_root.parent
+
+    documents_dir: Path = _project_root / "documents"
+    vector_db_path: Path = _backend_root / ".data" / "qdrant"
+    vector_collection_name: str = "document_chunks"
     allowed_upload_extensions: tuple[str, ...] = (".pdf", ".txt", ".md")
     upload_max_file_size_mb: int = 25
 
