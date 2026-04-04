@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from src.core.models import EvidenceChunk
 from src.db.vector_db import VectorDbManager
-from src.models import EvidenceChunk
 
 
 class AgentTools:

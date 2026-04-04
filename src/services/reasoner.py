@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 
-from src.config import Settings
-from src.llm_client import BedrockChatClient, LLMInvocationError
-from src.models import (
+from src.core.config import Settings
+from src.core.models import (
     AnswerSynthesisOutput,
     EvidenceChunk,
     GroundingCheckOutput,
@@ -12,12 +11,13 @@ from src.models import (
     GroundingStatus,
     QueryRewriteOutput,
 )
-from src.prompts import (
+from src.core.prompts import (
     answer_prompt,
     grounding_prompt,
     retry_rewrite_prompt,
     rewrite_query_prompt,
 )
+from src.services.llm_client import BedrockChatClient, LLMInvocationError
 
 
 class QueryReasoner:

@@ -42,3 +42,22 @@ def grounding_prompt(*, answer: str, citations: list[str], evidence: str) -> str
         f"Citations: {citations}\n"
         f"Evidence:\n{evidence}"
     )
+
+
+def naturalize_response_prompt(
+    *,
+    category: str,
+    query: str,
+    reason: str | None,
+    evidence_count: int,
+) -> str:
+    return (
+        "Write one short natural response for the user. "
+        "Do not use JSON. Do not mention internal pipelines, retries, or validation states. "
+        "Keep it direct and helpful.\n"
+        f"Prompt version: {PROMPT_VERSION}\n"
+        f"Category: {category}\n"
+        f"User query: {query}\n"
+        f"Reason: {reason or 'N/A'}\n"
+        f"Evidence count: {evidence_count}"
+    )

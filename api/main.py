@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 
 from src.bootstrap import get_pipeline, get_trace_store, get_upload_service
-from src.models import AskRequest, AskResponse, ConflictPolicy, PipelineTrace, UploadResponse
-from src.upload_service import UploadService, UploadValidationError
+from src.core.models import AskRequest, AskResponse, ConflictPolicy, PipelineTrace, UploadResponse
+from src.services.upload_service import UploadService, UploadValidationError
 
 app = FastAPI(title="Agentic RAG API", version="0.1.0")
 

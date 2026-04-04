@@ -4,7 +4,7 @@ Minimal baseline implemented for review only.
 
 Flow:
 
-`Query -> Understand -> Retrieve (tool) -> Validate -> Retry (once) -> Generate -> Verify -> Answer`
+`Query -> Understand -> Retrieve (tool) -> Validate -> Retry (once) -> Hydrate Evidence (tool) -> Generate -> Verify -> Answer`
 
 ## What Is Included
 
@@ -50,6 +50,17 @@ Run tests:
 ```bash
 uv run pytest
 ```
+
+## Phase Quality Gates
+
+Implementation is executed in strict phases. Every phase must pass:
+
+- phase-targeted tests,
+- full lint (`uv run ruff check .`),
+- full regression (`uv run pytest`),
+- and a code-smell review of changed files.
+
+See `docs/phase-gates.md` for the complete checklist and phase gate process.
 
 Ollama setup (optional):
 

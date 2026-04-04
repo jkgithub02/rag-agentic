@@ -4,9 +4,9 @@ import re
 from pathlib import Path
 from uuid import uuid4
 
-from src.config import Settings
+from src.core.config import Settings
+from src.core.models import ConflictPolicy, UploadResponse, UploadStatus
 from src.db.vector_db import VectorDbManager
-from src.models import ConflictPolicy, UploadResponse, UploadStatus
 
 _INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 

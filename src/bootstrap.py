@@ -3,13 +3,14 @@ from __future__ import annotations
 from functools import lru_cache
 
 from src.agent.tools import AgentTools
-from src.config import Settings, get_settings
+from src.core.config import Settings, get_settings
 from src.db.vector_db import VectorDbManager
-from src.llm_client import BedrockChatClient
 from src.orchestration.pipeline import AgenticPipeline
-from src.reasoner import QueryReasoner
-from src.trace_store import TraceStore
-from src.upload_service import UploadService
+from src.services.llm_client import BedrockChatClient
+from src.services.reasoner import QueryReasoner
+from src.services.response_policy import ResponsePolicy
+from src.services.trace_store import TraceStore
+from src.services.upload_service import UploadService
 
 
 @lru_cache(maxsize=1)
@@ -44,6 +45,11 @@ def get_query_reasoner() -> QueryReasoner:
 
 
 @lru_cache(maxsize=1)
+def get_response_policy() -> ResponsePolicy:
+    return ResponsePolicy(llm_client=get_bedrock_chat_client())
+
+
+@lru_cache(maxsize=1)
 def get_pipeline() -> AgenticPipeline:
     settings: Settings = get_settings()
     tools = AgentTools(get_vector_db())
@@ -52,4 +58,5 @@ def get_pipeline() -> AgenticPipeline:
         tools=tools,
         trace_store=get_trace_store(),
         reasoner=get_query_reasoner(),
+        response_policy=get_response_policy(),
     )

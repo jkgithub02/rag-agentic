@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from src.config import Settings
-from src.models import ConflictPolicy, UploadStatus
-from src.upload_service import UploadService, UploadValidationError
+from src.core.config import Settings
+from src.core.models import ConflictPolicy, UploadStatus
+from src.services.upload_service import UploadService, UploadValidationError
 
 
 class FakeVectorDb:

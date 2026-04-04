@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 from src.bootstrap import get_upload_service
-from src.models import ConflictPolicy, UploadResponse, UploadStatus
+from src.core.models import ConflictPolicy, UploadResponse, UploadStatus
 
 
 class FakeUploadService:

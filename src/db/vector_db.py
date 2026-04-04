@@ -11,8 +11,8 @@ from pypdf import PdfReader
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
-from src.config import Settings
-from src.models import EvidenceChunk
+from src.core.config import Settings
+from src.core.models import EvidenceChunk
 
 _SOURCE_TOKEN_REGEX = re.compile(r"[^a-z0-9]+")
 

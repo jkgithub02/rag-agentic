@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from threading import Lock
 
-from src.models import PipelineTrace
+from src.core.models import PipelineTrace
 
 
 class TraceStore:

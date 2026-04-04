@@ -20,6 +20,13 @@ class GroundingStatus(StrEnum):
     UNSUPPORTED = "unsupported"
 
 
+class ResponseCategory(StrEnum):
+    CLARIFICATION = "clarification"
+    SAFE_FAIL = "safe_fail"
+    RETRY_EXHAUSTED = "retry_exhausted"
+    GROUNDING_REASON = "grounding_reason"
+
+
 class EvidenceChunk(BaseModel):
     chunk_id: str
     source: str

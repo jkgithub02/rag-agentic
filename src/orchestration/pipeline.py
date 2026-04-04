@@ -6,19 +6,22 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from src.agent.tools import AgentTools
-from src.config import Settings
-from src.models import (
+from src.core.config import Settings
+from src.core.models import (
     AskResponse,
+    EvidenceChunk,
     GroundingResult,
     GroundingStatus,
     PipelineTrace,
     QueryRewriteOutput,
+    ResponseCategory,
     TraceEvent,
     ValidationResult,
     ValidationStatus,
 )
-from src.reasoner import QueryReasoner
-from src.trace_store import TraceStore
+from src.services.reasoner import QueryReasoner
+from src.services.response_policy import ResponsePolicy
+from src.services.trace_store import TraceStore
 
 
 class PipelineState(TypedDict, total=False):
@@ -33,7 +36,8 @@ class PipelineState(TypedDict, total=False):
     safe_fail: bool
     grounding: GroundingResult
     trace: PipelineTrace
-    chunks: list
+    chunks: list[EvidenceChunk]
+    evidence_chunks: list[EvidenceChunk]
 
 
 class AgenticPipeline:
@@ -45,11 +49,13 @@ class AgenticPipeline:
         tools: AgentTools,
         trace_store: TraceStore,
         reasoner: QueryReasoner | None = None,
+        response_policy: ResponsePolicy | None = None,
     ) -> None:
         self._settings = settings
         self._tools = tools
         self._trace_store = trace_store
         self._reasoner = reasoner
+        self._response_policy = response_policy
         self._graph = self._build_graph()
 
     def ask(self, query: str) -> AskResponse:
@@ -72,6 +78,7 @@ class AgenticPipeline:
         graph.add_node("retry", self._retry)
         graph.add_node("retry_exhausted", self._retry_exhausted)
         graph.add_node("clarify", self._clarify)
+        graph.add_node("hydrate", self._hydrate)
         graph.add_node("generate", self._generate)
         graph.add_node("verify", self._verify)
         graph.add_node("finish", self._finish)
@@ -87,10 +94,11 @@ class AgenticPipeline:
         graph.add_conditional_edges(
             "validate",
             self._route_after_validate,
-            {"retry": "retry", "retry_exhausted": "retry_exhausted", "generate": "generate"},
+            {"retry": "retry", "retry_exhausted": "retry_exhausted", "hydrate": "hydrate"},
         )
         graph.add_edge("retry", "retrieve")
         graph.add_edge("retry_exhausted", "generate")
+        graph.add_edge("hydrate", "generate")
         graph.add_edge("generate", "verify")
         graph.add_edge("verify", "finish")
         graph.add_edge("finish", END)
@@ -138,6 +146,16 @@ class AgenticPipeline:
     def _clarify(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         answer = self._settings.clarification_message
+        response_source = "settings-default"
+        prompt_version: str | None = None
+        if self._response_policy is not None:
+            answer, prompt_version = self._response_policy.render(
+                category=ResponseCategory.CLARIFICATION,
+                query=state["original_query"],
+                reason="Query is too vague and needs clarification.",
+                evidence_count=0,
+            )
+            response_source = "llm-policy"
         grounding = GroundingResult(
             status=GroundingStatus.UNSUPPORTED,
             reason="Query is too vague and requires clarification.",
@@ -145,7 +163,12 @@ class AgenticPipeline:
         self._event(
             trace,
             "clarify",
-            {"message": answer},
+            {
+                "message": answer,
+                "response_category": ResponseCategory.CLARIFICATION,
+                "response_source": response_source,
+                "prompt_version": prompt_version,
+            },
         )
         return {
             "answer": answer,
@@ -208,7 +231,24 @@ class AgenticPipeline:
             return "retry"
         if state["validation"].status == ValidationStatus.RETRY:
             return "retry_exhausted"
-        return "generate"
+        return "hydrate"
+
+    def _hydrate(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        selected_ids = [chunk.chunk_id for chunk in state["chunks"][:2]]
+        self._event(trace, "tool_fetch_chunks_by_ids", {"chunk_ids": selected_ids})
+        fetched = self._tools.fetch_chunks_by_ids(selected_ids)
+        evidence_chunks = fetched if fetched else state["chunks"][:2]
+        self._event(
+            trace,
+            "hydrate",
+            {
+                "selected_ids": selected_ids,
+                "fetched_ids": [chunk.chunk_id for chunk in fetched],
+                "used_fallback": not bool(fetched),
+            },
+        )
+        return {"evidence_chunks": evidence_chunks, "trace": trace}
 
     def _retry(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
@@ -264,10 +304,34 @@ class AgenticPipeline:
         trace = state["trace"]
         if state["validation"].status == ValidationStatus.FAIL:
             answer = self._settings.safe_fail_message
-            self._event(trace, "generate", {"safe_fail": True, "answer": answer})
+            response_category = ResponseCategory.SAFE_FAIL
+            response_source = "settings-default"
+            prompt_version: str | None = None
+            if state["validation"].reason.startswith("Retry budget exhausted"):
+                response_category = ResponseCategory.RETRY_EXHAUSTED
+            if self._response_policy is not None:
+                answer, prompt_version = self._response_policy.render(
+                    category=response_category,
+                    query=state["original_query"],
+                    reason=state["validation"].reason,
+                    evidence_count=len(state.get("chunks", [])),
+                )
+                response_source = "llm-policy"
+
+            self._event(
+                trace,
+                "generate",
+                {
+                    "safe_fail": True,
+                    "answer": answer,
+                    "response_category": response_category,
+                    "response_source": response_source,
+                    "prompt_version": prompt_version,
+                },
+            )
             return {"answer": answer, "citations": [], "safe_fail": True, "trace": trace}
 
-        chunks = state["chunks"][:2]
+        chunks = state.get("evidence_chunks") or state["chunks"][:2]
         chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
         generation_source = "fallback-no-reasoner"
         prompt_version: str | None = None
@@ -329,14 +393,37 @@ class AgenticPipeline:
             else:
                 grounding = GroundingResult(status=GroundingStatus.PARTIAL, reason="No citations.")
 
+            reason_source = "model-or-fallback"
+            reason_prompt_version: str | None = None
+            if self._response_policy is not None:
+                natural_reason, reason_prompt_version = self._response_policy.render(
+                    category=ResponseCategory.GROUNDING_REASON,
+                    query=state["original_query"],
+                    reason=grounding.reason,
+                    evidence_count=len(evidence),
+                )
+                grounding.reason = natural_reason
+                reason_source = "llm-policy"
+
             if grounding.status == GroundingStatus.UNSUPPORTED:
                 answer = self._settings.safe_fail_message
                 citations = []
                 safe_fail = True
+                if self._response_policy is not None:
+                    answer, _ = self._response_policy.render(
+                        category=ResponseCategory.SAFE_FAIL,
+                        query=state["original_query"],
+                        reason=grounding.reason,
+                        evidence_count=len(evidence),
+                    )
 
         payload = grounding.model_dump()
         payload["grounding_source"] = grounding_source
         payload["prompt_version"] = prompt_version
+        payload["reason_source"] = reason_source if "reason_source" in locals() else None
+        payload["reason_prompt_version"] = (
+            reason_prompt_version if "reason_prompt_version" in locals() else None
+        )
 
         self._event(trace, "verify_grounding", payload)
         return {

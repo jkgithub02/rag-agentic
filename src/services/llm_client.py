@@ -5,7 +5,7 @@ import json
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from src.config import Settings
+from src.core.config import Settings
 
 
 class LLMInvocationError(RuntimeError):
