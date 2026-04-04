@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, START, StateGraph
 
+from src.core.models import GroundingResult, GroundingStatus, PipelineTrace, ResponseCategory
 from src.orchestration.edges import PipelineEdges
 from src.orchestration.graph_state import PipelineState
 from src.orchestration.nodes import PipelineNodes
 
 
 def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
+    serializer = JsonPlusSerializer().with_msgpack_allowlist(
+        [
+            GroundingResult,
+            GroundingStatus,
+            PipelineTrace,
+            ResponseCategory,
+        ]
+    )
+
     graph = StateGraph(PipelineState)
     graph.add_node("understand", nodes.understand)
     graph.add_node("retrieve", nodes.retrieve)
@@ -45,4 +56,4 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
     graph.add_edge("generate", "verify")
     graph.add_edge("verify", "finish")
     graph.add_edge("finish", END)
-    return graph.compile(checkpointer=InMemorySaver())
+    return graph.compile(checkpointer=InMemorySaver(serde=serializer))
