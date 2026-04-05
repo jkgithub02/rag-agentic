@@ -1,5 +1,6 @@
 # Documents folder
 documents/
+docs/
 
 # Virtual environment
 .venv/

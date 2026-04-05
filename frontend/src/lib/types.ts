@@ -20,6 +20,13 @@ export interface AskResponse {
     trace_id: string;
 }
 
+export type AskStreamEvent =
+    | { type: "start"; trace_id?: string }
+    | { type: "thinking"; status: string }
+    | { type: "delta"; text: string }
+    | { type: "done"; citations: string[]; safe_fail: boolean; trace_id: string }
+    | { type: "error"; message: string };
+
 export interface DocumentRecord {
     filename: string;
     size_bytes: number;

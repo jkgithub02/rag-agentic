@@ -14,7 +14,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    aws_region: str = "us-east-1"
+    aws_region: str = "ap-southeast-5"
     bedrock_chat_model_id: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
     reasoning_enabled: bool = True
     reasoning_temperature: float = 0.0
@@ -26,9 +26,8 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = "nomic-embed-text"
 
     _backend_root: Path = Path(__file__).resolve().parents[2]
-    _project_root: Path = _backend_root.parent
 
-    documents_dir: Path = _project_root / "documents"
+    documents_dir: Path = _backend_root/ "docs"
     vector_db_path: Path = _backend_root / ".data" / "qdrant"
     vector_collection_name: str = "document_chunks"
     allowed_upload_extensions: tuple[str, ...] = (".pdf", ".txt", ".md")
@@ -44,7 +43,6 @@ class Settings(BaseSettings):
 
     min_relevance_score: float = 0.12
     ambiguity_margin: float = 0.04
-    max_retry_count: int = 1
 
     safe_fail_message: str = (
         "I do not have sufficient evidence in the indexed documents to answer this confidently."

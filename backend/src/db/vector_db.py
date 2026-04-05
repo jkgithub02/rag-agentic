@@ -70,14 +70,16 @@ class VectorDbManager:
 
     def search(self, query: str, top_k: int) -> list[EvidenceChunk]:
         vector = self._embeddings.embed_query(query)
+        fetch_limit = max(top_k * 8, 24)
         response = self._client.query_points(
             collection_name=self._settings.vector_collection_name,
             query=vector,
-            limit=top_k,
+            limit=fetch_limit,
             with_payload=True,
         )
 
         hits: list[EvidenceChunk] = []
+        stale_sources: set[str] = set()
         for point in response.points:
             payload = point.payload or {}
             chunk_id = payload.get("chunk_id")
@@ -89,6 +91,9 @@ class VectorDbManager:
                 or not isinstance(text, str)
             ):
                 continue
+            if not self._source_exists(source):
+                stale_sources.add(source)
+                continue
             hits.append(
                 EvidenceChunk(
                     chunk_id=chunk_id,
@@ -97,6 +102,12 @@ class VectorDbManager:
                     score=float(point.score or 0.0),
                 )
             )
+            if len(hits) >= top_k:
+                break
+
+        if stale_sources:
+            self.prune_stale_sources(stale_sources)
+
         return hits
 
     def fetch_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
@@ -108,6 +119,16 @@ class VectorDbManager:
     def delete_source(self, source_name: str) -> None:
         with self._write_lock:
             self._delete_source_locked(source_name)
+
+    def prune_stale_sources(self, candidates: set[str] | None = None) -> int:
+        with self._write_lock:
+            if candidates is None:
+                candidates = {chunk.source for chunk in self._chunk_lookup.values()}
+
+            stale = [source for source in candidates if source and not self._source_exists(source)]
+            for source in stale:
+                self._delete_source_locked(source)
+            return len(stale)
 
     def _load_and_chunk_documents(self, docs_dir: Path) -> list[EvidenceChunk]:
         if not docs_dir.exists():
@@ -252,3 +273,6 @@ class VectorDbManager:
     def _point_id(chunk_id: str) -> int:
         digest = hashlib.sha1(chunk_id.encode("utf-8")).digest()[:8]
         return int.from_bytes(digest, byteorder="big", signed=False)
+
+    def _source_exists(self, source_name: str) -> bool:
+        return (self._settings.documents_dir / source_name).is_file()

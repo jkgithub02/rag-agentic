@@ -10,16 +10,14 @@ from src.core.models import (
     EvidenceChunk,
     GroundingCheckOutput,
     GroundingResult,
-    QueryClarityOutput,
-    QueryRewriteOutput,
+    QueryAnalysisOutput,
 )
 from src.core.prompts import (
     answer_prompt,
+    conversation_summary_prompt,
     coverage_check_prompt,
     grounding_prompt,
-    query_clarity_prompt,
-    retry_rewrite_prompt,
-    rewrite_query_prompt,
+    query_analysis_prompt,
 )
 from src.services.llm_client import BedrockChatClient, LLMInvocationError
 
@@ -33,51 +31,51 @@ class QueryReasoner:
         self._settings = settings
         self._llm_client = llm_client
 
-    def rewrite_query(self, query: str) -> tuple[QueryRewriteOutput, str]:
-        if not self._settings.reasoning_enabled:
-            raise LLMInvocationError("Reasoning is disabled but rewrite_query was invoked.")
+    def summarize_conversation(self, history: list[dict[str, str]]) -> str:
+        if not history:
+            return ""
 
-        prompt = rewrite_query_prompt(query)
-        output = self._invoke_structured(prompt, QueryRewriteOutput)
-        output.rewritten_query = self._normalize_rewritten_query(
-            output.rewritten_query,
-            operation="rewrite_query",
-        )
-        return output, "llm"
+        turns: list[str] = []
+        for item in history[-8:]:
+            role = item.get("role", "user").strip().lower()
+            label = "User" if role == "user" else "Assistant"
+            content = item.get("content", "").strip()
+            if content:
+                turns.append(f"{label}: {content}")
 
-    def assess_query_clarity(self, *, query: str) -> tuple[bool, str, str | None]:
-        if not self._settings.reasoning_enabled:
-            raise LLMInvocationError("Reasoning is disabled but assess_query_clarity was invoked.")
+        if not turns:
+            return ""
 
-        prompt = query_clarity_prompt(query=query)
-        output = self._invoke_structured(prompt, QueryClarityOutput)
-        return output.clarify_needed, output.reason.strip(), output.prompt_version
+        prompt = conversation_summary_prompt(history="\n".join(turns))
+        return self._llm_client.invoke_text(prompt).strip()
 
-    def rewrite_for_retry(
+    def analyze_query(
         self,
         *,
-        original_query: str,
-        retry_reason: str,
-        evidence: list[str],
-    ) -> tuple[QueryRewriteOutput, str]:
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> tuple[QueryAnalysisOutput, str]:
         if not self._settings.reasoning_enabled:
-            raise LLMInvocationError("Reasoning is disabled but rewrite_for_retry was invoked.")
+            raise LLMInvocationError("Reasoning is disabled but analyze_query was invoked.")
 
-        evidence_block = "\n".join(f"- {item}" for item in evidence if item.strip())
-        if not evidence_block:
-            evidence_block = "- No evidence snippets available."
+        prompt = query_analysis_prompt(query=query, conversation_summary=conversation_summary)
+        output = self._invoke_structured(prompt, QueryAnalysisOutput)
 
-        prompt = retry_rewrite_prompt(
-            original_query=original_query,
-            retry_reason=retry_reason,
-            evidence=evidence_block,
-        )
+        if output.is_clear:
+            rewritten = (output.rewritten_query or query).strip()
+            output.rewritten_query = self._normalize_rewritten_query(
+                rewritten,
+                operation="analyze_query",
+            )
+            output.clarification_needed = None
+        else:
+            output.rewritten_query = None
+            output.clarification_needed = (
+                output.clarification_needed.strip()
+                if isinstance(output.clarification_needed, str) and output.clarification_needed.strip()
+                else "Please clarify what you want to know from the uploaded documents."
+            )
 
-        output = self._invoke_structured(prompt, QueryRewriteOutput)
-        output.rewritten_query = self._normalize_rewritten_query(
-            output.rewritten_query,
-            operation="rewrite_for_retry",
-        )
         return output, "llm"
 
     def assess_grounding(
@@ -97,8 +95,7 @@ class QueryReasoner:
         prompt = grounding_prompt(answer=answer, citations=citations, evidence=evidence_block)
 
         parsed = self._invoke_structured_raw(prompt)
-        if isinstance(parsed.get("status"), str):
-            parsed["status"] = parsed["status"].lower()
+        parsed["status"] = self._normalize_grounding_status(parsed.get("status"))
         output = GroundingCheckOutput.model_validate(parsed)
         reason = output.reason.strip() or "Reasoner grounding evaluation complete."
         return (
@@ -133,6 +130,8 @@ class QueryReasoner:
         citation_chunk_ids = [
             chunk_id for chunk_id in output.citation_chunk_ids if chunk_id in allowed_ids
         ]
+        if not citation_chunk_ids:
+            citation_chunk_ids = [chunk.chunk_id for chunk in chunks[:2] if chunk.chunk_id]
         if not citation_chunk_ids:
             raise LLMInvocationError("synthesize_answer produced invalid citation ids.")
 
@@ -190,3 +189,21 @@ class QueryReasoner:
         if start == -1 or end == -1 or end <= start:
             raise ValueError("No JSON object found in LLM response.")
         return json.loads(stripped[start : end + 1])
+
+    @staticmethod
+    def _normalize_grounding_status(value: object) -> object:
+        if not isinstance(value, str):
+            return value
+
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        synonyms = {
+            "grounded": "supported",
+            "supported": "supported",
+            "partially_grounded": "partial",
+            "partially_supported": "partial",
+            "partial": "partial",
+            "ungrounded": "unsupported",
+            "not_grounded": "unsupported",
+            "unsupported": "unsupported",
+        }
+        return synonyms.get(normalized, normalized)

@@ -7,10 +7,12 @@ from src.core.models import EvidenceChunk, GroundingResult, PipelineTrace, Valid
 
 class PipelineState(TypedDict, total=False):
     query: str
+    history: list[dict[str, str]]
+    conversation_summary: str
     original_query: str
     rewritten_query: str
     clarify_needed: bool
-    retry_count: int
+    clarify_message: str
     validation: ValidationResult
     answer: str
     citations: list[str]

@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 
 class ValidationStatus(StrEnum):
     PASS = "pass"
-    RETRY = "retry"
     FAIL = "fail"
 
 
@@ -23,8 +22,6 @@ class GroundingStatus(StrEnum):
 class ResponseCategory(StrEnum):
     CLARIFICATION = "clarification"
     SAFE_FAIL = "safe_fail"
-    RETRY_EXHAUSTED = "retry_exhausted"
-    GROUNDING_REASON = "grounding_reason"
 
 
 class EvidenceChunk(BaseModel):
@@ -73,14 +70,10 @@ class AskResponse(BaseModel):
     trace_id: str
 
 
-class QueryRewriteOutput(BaseModel):
-    rewritten_query: str
-    prompt_version: str | None = None
-
-
-class QueryClarityOutput(BaseModel):
-    clarify_needed: bool
-    reason: str
+class QueryAnalysisOutput(BaseModel):
+    is_clear: bool
+    rewritten_query: str | None = None
+    clarification_needed: str | None = None
     prompt_version: str | None = None
 
 

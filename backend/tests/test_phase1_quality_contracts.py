@@ -15,8 +15,6 @@ def test_response_categories_contract() -> None:
     expected = {
         "clarification",
         "safe_fail",
-        "retry_exhausted",
-        "grounding_reason",
     }
     actual = {category.value for category in ResponseCategory}
     assert actual == expected

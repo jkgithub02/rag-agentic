@@ -59,12 +59,14 @@ export function UploadTab({ onKnowledgeChanged }: UploadTabProps) {
             <form className="space-y-3" onSubmit={onSubmit}>
                 <label className="block text-sm font-semibold text-[var(--ink)]">Upload file</label>
                 <input
+                    data-testid="upload-file-input"
                     type="file"
                     accept=".pdf,.txt,.md"
                     onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                     className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-sm"
                 />
                 <button
+                    data-testid="upload-submit"
                     type="submit"
                     disabled={isLoading}
                     className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"

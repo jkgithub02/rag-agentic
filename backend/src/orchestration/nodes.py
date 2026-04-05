@@ -13,7 +13,6 @@ from src.core.models import (
 )
 from src.orchestration.graph_state import PipelineState
 from src.services.reasoner import QueryReasoner
-from src.services.response_policy import ResponsePolicy
 
 
 class PipelineNodes:
@@ -23,57 +22,79 @@ class PipelineNodes:
         settings: Settings,
         tools: AgentTools,
         reasoner: QueryReasoner | None,
-        response_policy: ResponsePolicy | None,
     ) -> None:
         if reasoner is None:
             raise ValueError("PipelineNodes requires a QueryReasoner instance.")
         self._settings = settings
         self._tools = tools
         self._reasoner = reasoner
-        self._response_policy = response_policy
 
-    def understand(self, state: PipelineState) -> PipelineState:
+    def summarize_history(self, state: PipelineState) -> PipelineState:
+        history = state.get("history", [])
+        conversation_summary = self._reasoner.summarize_conversation(history)
+        return {"conversation_summary": conversation_summary}
+
+    def rewrite_query(self, state: PipelineState) -> PipelineState:
         original_query = " ".join(state["query"].split())
-        rewrite_result, rewrite_source = self._reasoner.rewrite_query(original_query)
-        rewritten_query = rewrite_result.rewritten_query
-        clarify_needed, clarity_reason, clarity_prompt_version = (
-            self._reasoner.assess_query_clarity(query=original_query)
-        )
+        conversation_summary = state.get("conversation_summary", "")
+        clarify_needed = True
+        rewritten_query = original_query
+        clarify_message = self._settings.clarification_message
+        rewrite_source = "fallback-rule"
+        clarity_reason = "Fallback clarification."
+        clarity_prompt_version: str | None = None
+        analysis_prompt_version: str | None = None
+        analysis_source = "fallback-rule"
+        analysis_error: str | None = None
+
+        try:
+            analysis, analysis_source = self._reasoner.analyze_query(
+                query=original_query,
+                conversation_summary=conversation_summary,
+            )
+            clarify_needed = not analysis.is_clear
+            rewritten_query = analysis.rewritten_query or original_query
+            clarify_message = analysis.clarification_needed or self._settings.clarification_message
+            rewrite_source = analysis_source
+            clarity_reason = (
+                "Model requested clarification." if clarify_needed else "Model marked query clear."
+            )
+            clarity_prompt_version = analysis.prompt_version
+            analysis_prompt_version = analysis.prompt_version
+        except Exception as exc:
+            analysis_error = str(exc)
+        clarity_source = analysis_source
         trace = PipelineTrace(original_query=original_query, rewritten_query=rewritten_query)
         self._event(
             trace,
-            "understand",
+            "rewrite_query",
             {
                 "original": original_query,
+                "conversation_summary": conversation_summary,
                 "rewritten": rewritten_query,
                 "rewrite_source": rewrite_source,
-                "prompt_version": rewrite_result.prompt_version,
+                "prompt_version": analysis_prompt_version,
                 "clarify_needed": clarify_needed,
                 "clarify_reason": clarity_reason,
                 "clarify_prompt_version": clarity_prompt_version,
+                "clarity_source": clarity_source,
+                "analysis_error": analysis_error,
             },
         )
         return {
             "original_query": original_query,
+            "conversation_summary": conversation_summary,
             "rewritten_query": rewritten_query,
             "clarify_needed": clarify_needed,
-            "retry_count": 0,
+            "clarify_message": clarify_message,
             "trace": trace,
         }
 
     def clarify(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
-        answer = self._settings.clarification_message
+        answer = state.get("clarify_message") or self._settings.clarification_message
         response_source = "settings-default"
         prompt_version: str | None = None
-        if self._response_policy is not None:
-            answer, prompt_version = self._response_policy.render(
-                category=ResponseCategory.CLARIFICATION,
-                query=state["original_query"],
-                reason="Query is too vague and needs clarification.",
-                evidence_count=0,
-            )
-            response_source = "llm-policy"
         grounding = GroundingResult(
             status=GroundingStatus.UNSUPPORTED,
             reason="Query is too vague and requires clarification.",
@@ -99,9 +120,22 @@ class PipelineNodes:
     def retrieve(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         self._event(trace, "tool_search_chunks", {"query": state["rewritten_query"]})
-        chunks = self._tools.search_chunks(state["rewritten_query"], self._settings.retrieval_top_k)
-        stage = "retrieve_retry" if state["retry_count"] > 0 else "retrieve"
-        self._event(trace, stage, {"hits": [c.model_dump() for c in chunks]})
+        search_hits = self._tools.search_chunks(state["rewritten_query"], self._settings.retrieval_top_k)
+
+        chunk_ids = [chunk.chunk_id for chunk in search_hits]
+        self._event(trace, "tool_fetch_chunks_by_ids", {"chunk_ids": chunk_ids})
+        fetched_chunks = self._tools.fetch_chunks_by_ids(chunk_ids)
+
+        if fetched_chunks:
+            score_by_id = {chunk.chunk_id: chunk.score for chunk in search_hits}
+            chunks = [
+                chunk.model_copy(update={"score": score_by_id.get(chunk.chunk_id, chunk.score)})
+                for chunk in fetched_chunks
+            ]
+        else:
+            chunks = search_hits
+
+        self._event(trace, "retrieve", {"hits": [c.model_dump() for c in chunks]})
         return {"chunks": chunks, "trace": trace}
 
     def validate(self, state: PipelineState) -> PipelineState:
@@ -116,16 +150,17 @@ class PipelineNodes:
             top_score = chunks[0].score
             if top_score < self._settings.min_relevance_score:
                 validation = ValidationResult(
-                    status=ValidationStatus.RETRY,
+                    status=ValidationStatus.FAIL,
                     reason="Top score below threshold.",
                     confidence=top_score,
                 )
             elif (
                 len(chunks) >= 2
                 and (chunks[0].score - chunks[1].score) < self._settings.ambiguity_margin
+                and chunks[0].source != chunks[1].source
             ):
                 validation = ValidationResult(
-                    status=ValidationStatus.RETRY,
+                    status=ValidationStatus.FAIL,
                     reason="Top two hits are ambiguous.",
                     confidence=top_score,
                 )
@@ -137,66 +172,8 @@ class PipelineNodes:
                 )
 
         trace = state["trace"]
-        stage = "validate_retry" if state["retry_count"] > 0 else "validate"
-        self._event(trace, stage, validation.model_dump())
+        self._event(trace, "validate", validation.model_dump())
         return {"validation": validation, "trace": trace}
-
-    def retry(self, state: PipelineState) -> PipelineState:
-        trace = state["trace"]
-        evidence = [chunk.text[:220] for chunk in state["chunks"][:3]]
-        rewrite_result, rewrite_source = self._reasoner.rewrite_for_retry(
-            original_query=state["original_query"],
-            retry_reason=state["validation"].reason,
-            evidence=evidence,
-        )
-        rewritten = rewrite_result.rewritten_query
-        prompt_version: str | None = rewrite_result.prompt_version
-
-        retry_count = state["retry_count"] + 1
-        trace.retry_triggered = True
-        trace.retry_reason = state["validation"].reason
-        trace.rewritten_query = rewritten
-        self._event(
-            trace,
-            "retry",
-            {
-                "attempt": retry_count,
-                "rewritten": rewritten,
-                "rewrite_source": rewrite_source,
-                "prompt_version": prompt_version,
-            },
-        )
-        return {"retry_count": retry_count, "rewritten_query": rewritten, "trace": trace}
-
-    def retry_exhausted(self, state: PipelineState) -> PipelineState:
-        trace = state["trace"]
-        forced = ValidationResult(
-            status=ValidationStatus.FAIL,
-            reason=(
-                "Retry budget exhausted before disambiguation. "
-                f"Last reason: {state['validation'].reason}"
-            ),
-            confidence=state["validation"].confidence,
-        )
-        self._event(trace, "retry_exhausted", forced.model_dump())
-        return {"validation": forced, "trace": trace}
-
-    def hydrate(self, state: PipelineState) -> PipelineState:
-        trace = state["trace"]
-        selected_ids = [chunk.chunk_id for chunk in state["chunks"][:2]]
-        self._event(trace, "tool_fetch_chunks_by_ids", {"chunk_ids": selected_ids})
-        fetched = self._tools.fetch_chunks_by_ids(selected_ids)
-        if not fetched:
-            raise ValueError("fetch_chunks_by_ids returned no evidence chunks.")
-        self._event(
-            trace,
-            "hydrate",
-            {
-                "selected_ids": selected_ids,
-                "fetched_ids": [chunk.chunk_id for chunk in fetched],
-            },
-        )
-        return {"chunks": fetched, "trace": trace}
 
     def generate(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
@@ -217,7 +194,33 @@ class PipelineNodes:
             )
             return {"answer": answer, "citations": [], "safe_fail": True, "trace": trace}
 
-        answer, citations, generation_source, prompt_version = self._generate_supported(state)
+        try:
+            answer, citations, generation_source, prompt_version = self._generate_supported(state)
+        except Exception as exc:
+            forced_state = {
+                **state,
+                "validation": ValidationResult(
+                    status=ValidationStatus.FAIL,
+                    reason="Generated answer could not be grounded in retrieved evidence.",
+                    confidence=state["validation"].confidence,
+                ),
+            }
+            answer, response_category, response_source, prompt_version = (
+                self._generate_safe_fail(forced_state)
+            )
+            self._event(
+                trace,
+                "generate",
+                {
+                    "safe_fail": True,
+                    "answer": answer,
+                    "response_category": response_category,
+                    "response_source": response_source,
+                    "prompt_version": prompt_version,
+                    "fallback_reason": str(exc),
+                },
+            )
+            return {"answer": answer, "citations": [], "safe_fail": True, "trace": trace}
 
         self._event(
             trace,
@@ -236,8 +239,6 @@ class PipelineNodes:
         answer = state["answer"]
         citations = state["citations"]
         safe_fail = state["safe_fail"]
-        reason_source: str | None = None
-        reason_prompt_version: str | None = None
         coverage_missing_terms: list[str] = []
         coverage_source: str | None = None
         coverage_prompt_version: str | None = None
@@ -269,28 +270,10 @@ class PipelineNodes:
                 prompt_version=prompt_version,
             )
 
-            reason_source = "model"
-            if self._response_policy is not None:
-                natural_reason, reason_prompt_version = self._response_policy.render(
-                    category=ResponseCategory.GROUNDING_REASON,
-                    query=state["original_query"],
-                    reason=grounding.reason,
-                    evidence_count=len(evidence),
-                )
-                grounding.reason = natural_reason
-                reason_source = "llm-policy"
-
             if grounding.status == GroundingStatus.UNSUPPORTED:
                 answer = self._settings.safe_fail_message
                 citations = []
                 safe_fail = True
-                if self._response_policy is not None:
-                    answer, _ = self._response_policy.render(
-                        category=ResponseCategory.SAFE_FAIL,
-                        query=state["original_query"],
-                        reason=grounding.reason,
-                        evidence_count=len(evidence),
-                    )
 
         payload = grounding.model_dump()
         payload["grounding_source"] = grounding_source
@@ -298,8 +281,8 @@ class PipelineNodes:
         payload["coverage_missing_terms"] = coverage_missing_terms
         payload["coverage_source"] = coverage_source
         payload["coverage_prompt_version"] = coverage_prompt_version
-        payload["reason_source"] = reason_source
-        payload["reason_prompt_version"] = reason_prompt_version
+        payload["reason_source"] = "model"
+        payload["reason_prompt_version"] = None
 
         self._event(trace, "verify_grounding", payload)
         return {
@@ -327,16 +310,9 @@ class PipelineNodes:
         response_category = ResponseCategory.SAFE_FAIL
         response_source = "settings-default"
         prompt_version: str | None = None
-        if state["validation"].reason.startswith("Retry budget exhausted"):
-            response_category = ResponseCategory.RETRY_EXHAUSTED
-        if self._response_policy is not None:
-            answer, prompt_version = self._response_policy.render(
-                category=response_category,
-                query=state["original_query"],
-                reason=state["validation"].reason,
-                evidence_count=len(state.get("chunks", [])),
-            )
-            response_source = "llm-policy"
+        no_hits = state["validation"].reason.strip().lower().startswith("no retrieval hits")
+        if no_hits:
+            return answer, response_category, response_source, prompt_version
         return answer, response_category, response_source, prompt_version
 
     def _generate_supported(
@@ -401,3 +377,4 @@ class PipelineNodes:
             coverage_source,
             coverage_prompt_version,
         )
+

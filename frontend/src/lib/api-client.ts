@@ -1,5 +1,6 @@
 import {
     type AskResponse,
+    type AskStreamEvent,
     type ConflictPolicy,
     type DocumentRecord,
     type PipelineTrace,
@@ -44,6 +45,101 @@ export async function askQuestion(input: {
     }
 
     return (await response.json()) as AskResponse;
+}
+
+export async function askQuestionStream(
+    input: { query: string; threadId?: string },
+    onEvent: (event: AskStreamEvent) => void,
+): Promise<void> {
+    const response = await fetch(`${API_BASE}/ask/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            query: input.query,
+            thread_id: input.threadId?.trim() || undefined,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error(await parseError(response));
+    }
+
+    if (!response.body) {
+        throw new Error("Streaming response body is unavailable");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    const emitChunk = (chunk: string) => {
+        const lines = chunk.split("\n");
+        let eventType = "message";
+        const dataLines: string[] = [];
+
+        for (const line of lines) {
+            if (line.startsWith("event:")) {
+                eventType = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+                dataLines.push(line.slice(5).trim());
+            }
+        }
+
+        const data = dataLines.join("\n");
+        if (!data) {
+            return;
+        }
+
+        try {
+            const payload = JSON.parse(data) as Record<string, unknown>;
+            switch (eventType) {
+                case "start":
+                    onEvent({ type: "start", trace_id: String(payload.trace_id ?? "") || undefined });
+                    break;
+                case "delta":
+                    onEvent({ type: "delta", text: String(payload.text ?? "") });
+                    break;
+                case "thinking":
+                    onEvent({ type: "thinking", status: String(payload.status ?? "running") });
+                    break;
+                case "done":
+                    onEvent({
+                        type: "done",
+                        citations: Array.isArray(payload.citations)
+                            ? payload.citations.map((value) => String(value))
+                            : [],
+                        safe_fail: Boolean(payload.safe_fail),
+                        trace_id: String(payload.trace_id ?? ""),
+                    });
+                    break;
+                case "error":
+                    onEvent({ type: "error", message: String(payload.message ?? "Streaming failed") });
+                    break;
+                default:
+                    break;
+            }
+        } catch {
+            onEvent({ type: "error", message: "Failed to parse streaming event" });
+        }
+    };
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+            break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        let separatorIndex = buffer.indexOf("\n\n");
+        while (separatorIndex !== -1) {
+            const chunk = buffer.slice(0, separatorIndex).trim();
+            buffer = buffer.slice(separatorIndex + 2);
+            if (chunk) {
+                emitChunk(chunk);
+            }
+            separatorIndex = buffer.indexOf("\n\n");
+        }
+    }
 }
 
 export async function uploadDocument(input: {

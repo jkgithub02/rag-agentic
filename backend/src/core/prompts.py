@@ -3,32 +3,40 @@ from __future__ import annotations
 PROMPT_VERSION = "v1.0.0"
 
 
-def rewrite_query_prompt(query: str) -> str:
+def conversation_summary_prompt(*, history: str) -> str:
     return (
-        "Rewrite the query for retrieval clarity while preserving user intent. "
-        "Return JSON: {\"rewritten_query\": \"...\", \"prompt_version\": \"...\"}.\n"
+        "Summarize the prior conversation in 1-2 concise sentences. "
+        "Keep entities, unresolved intents, and document/topic references. "
+        "Ignore greetings and off-topic chitchat. Return plain text only.\n"
         f"Prompt version: {PROMPT_VERSION}\n"
-        f"Query: {query}"
+        f"Conversation:\n{history}"
     )
 
 
-def query_clarity_prompt(*, query: str) -> str:
-    return (
-        "Decide whether this query needs clarification before retrieval. "
-        "Return JSON with keys clarify_needed, reason, prompt_version.\n"
-        f"Prompt version: {PROMPT_VERSION}\n"
-        f"Query: {query}"
+def query_analysis_prompt(*, query: str, conversation_summary: str | None = None) -> str:
+    summary_block = (
+        f"Conversation summary:\n{conversation_summary}\n"
+        if conversation_summary and conversation_summary.strip()
+        else "Conversation summary:\n(none)\n"
     )
-
-
-def retry_rewrite_prompt(*, original_query: str, retry_reason: str, evidence: str) -> str:
     return (
-        "Rewrite the query for a retry retrieval pass. "
-        "Return JSON: {\"rewritten_query\": \"...\", \"prompt_version\": \"...\"}.\n"
+        "You are an expert query analyst and rewriter. "
+        "Decide if the query is clear enough for document retrieval. "
+        "If clear, rewrite it into a single self-contained retrieval query. "
+        "If unclear, provide a short clarification question for the user. "
+        "Use conversation summary only to resolve follow-up references (for example: him, it, that). "
+        "If the query is a short confirmation follow-up (for example: yes, in available documents), "
+        "inherit the referenced entity/topic from conversation summary and treat it as clear retrieval intent. "
+        "If the user asks to search/retrieve from available documents, treat that as clear retrieval intent and set is_clear=true. "
+        "For entity-plus-document requests (for example: summarize Jason Kong resume), prefer is_clear=true and produce a retrieval query. "
+        "If user requests general knowledge outside uploaded/indexed documents, set is_clear=false and ask one concise clarification "
+        "that this assistant can only answer from uploaded/indexed documents. "
+        "Do not repeatedly ask the same clarification when user already asked to search available documents. "
+        "Do not invent facts or broaden scope. "
+        "Return JSON with keys: is_clear, rewritten_query, clarification_needed, prompt_version.\n"
         f"Prompt version: {PROMPT_VERSION}\n"
-        f"Original query: {original_query}\n"
-        f"Retry reason: {retry_reason}\n"
-        f"Evidence:\n{evidence}"
+        f"{summary_block}"
+        f"User query: {query}"
     )
 
 
@@ -45,6 +53,7 @@ def answer_prompt(*, query: str, evidence: str) -> str:
 def grounding_prompt(*, answer: str, citations: list[str], evidence: str) -> str:
     return (
         "Check if answer is grounded in evidence. "
+        "Set status to exactly one of: supported, partial, unsupported. "
         "Return JSON with keys status, reason, prompt_version.\n"
         f"Prompt version: {PROMPT_VERSION}\n"
         f"Answer: {answer}\n"
@@ -63,23 +72,4 @@ def coverage_check_prompt(*, query: str, answer: str, evidence: str) -> str:
         f"Query: {query}\n"
         f"Answer: {answer}\n"
         f"Evidence:\n{evidence}"
-    )
-
-
-def naturalize_response_prompt(
-    *,
-    category: str,
-    query: str,
-    reason: str | None,
-    evidence_count: int,
-) -> str:
-    return (
-        "Write one short natural response for the user. "
-        "Do not use JSON. Do not mention internal pipelines, retries, or validation states. "
-        "Keep it direct and helpful.\n"
-        f"Prompt version: {PROMPT_VERSION}\n"
-        f"Category: {category}\n"
-        f"User query: {query}\n"
-        f"Reason: {reason or 'N/A'}\n"
-        f"Evidence count: {evidence_count}"
     )

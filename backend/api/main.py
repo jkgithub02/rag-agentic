@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+import json
+
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from src.bootstrap import get_pipeline, get_settings, get_trace_store, get_upload_service
 from src.core.models import AskRequest, AskResponse, ConflictPolicy, PipelineTrace, UploadResponse
@@ -32,6 +36,48 @@ def ask(
     pipeline: AgenticPipeline = Depends(get_pipeline),  # noqa: B008
 ) -> AskResponse:
     return pipeline.ask(payload.query, thread_id=payload.thread_id)
+
+
+@app.post("/ask/stream")
+def ask_stream(
+    payload: AskRequest,
+    pipeline: AgenticPipeline = Depends(get_pipeline),  # noqa: B008
+) -> StreamingResponse:
+    def event(event_name: str, data: dict[str, object]) -> str:
+        return f"event: {event_name}\ndata: {json.dumps(data)}\n\n"
+
+    def generate() -> object:
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(pipeline.ask, payload.query, thread_id=payload.thread_id)
+        try:
+            yield event("start", {"trace_id": payload.thread_id or ""})
+
+            while True:
+                try:
+                    response = future.result(timeout=0.25)
+                    break
+                except TimeoutError:
+                    yield event("thinking", {"status": "running"})
+
+            answer_text = response.answer
+            chunk_size = 40
+            for index in range(0, len(answer_text), chunk_size):
+                yield event("delta", {"text": answer_text[index : index + chunk_size]})
+
+            yield event(
+                "done",
+                {
+                    "citations": response.citations,
+                    "safe_fail": response.safe_fail,
+                    "trace_id": response.trace_id,
+                },
+            )
+        except Exception as exc:  # pragma: no cover
+            yield event("error", {"message": str(exc)})
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.post("/upload", response_model=UploadResponse)
