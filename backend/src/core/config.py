@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     reasoning_max_tokens: int = 300
     reasoning_retry_attempts: int = 3
     reasoning_retry_backoff_seconds: float = 0.35
+    stream_token_delay_seconds: float = 0.015
     embedding_provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"

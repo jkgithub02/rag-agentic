@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import json
+import re
+import time
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +16,8 @@ from src.services.trace_store import TraceStore
 from src.services.upload_service import UploadService, UploadValidationError
 
 app = FastAPI(title="Agentic RAG API", version="0.1.0")
+
+_TOKEN_STREAM_REGEX = re.compile(r"\S+|\s+")
 
 _settings = get_settings()
 app.add_middleware(
@@ -60,9 +64,12 @@ def ask_stream(
                     yield event("thinking", {"status": "running"})
 
             answer_text = response.answer
-            chunk_size = 40
-            for index in range(0, len(answer_text), chunk_size):
-                yield event("delta", {"text": answer_text[index : index + chunk_size]})
+            token_delay = max(0.0, _settings.stream_token_delay_seconds)
+            for token in _TOKEN_STREAM_REGEX.findall(answer_text):
+                if token:
+                    yield event("delta", {"text": token})
+                    if token_delay > 0:
+                        time.sleep(token_delay)
 
             yield event(
                 "done",
