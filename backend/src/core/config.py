@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     chunk_overlap: int = 150
     retrieval_top_k: int = 4
     retrieval_neighbor_span: int = 1
+    retrieval_mode: str = "hybrid"
+    retrieval_dense_weight: float = 0.65
+    retrieval_sparse_weight: float = 0.35
     context_compression_base_threshold: int = 2000
     context_compression_growth_factor: float = 0.9
     agent_max_iterations: int = 10

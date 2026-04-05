@@ -204,6 +204,16 @@ export async function listTraces(limit = 20): Promise<PipelineTrace[]> {
     return (await response.json()) as PipelineTrace[];
 }
 
+export async function getTrace(traceId: string): Promise<PipelineTrace> {
+    const response = await fetch(`${API_BASE}/trace/${encodeURIComponent(traceId)}`, { method: "GET" });
+
+    if (!response.ok) {
+        throw new Error(await parseError(response));
+    }
+
+    return (await response.json()) as PipelineTrace;
+}
+
 export async function checkBackendHealth(): Promise<boolean> {
     try {
         const response = await fetch(`${API_BASE}/health`, { method: "GET" });

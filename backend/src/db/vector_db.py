@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import Counter
 import hashlib
+import math
 import re
 from pathlib import Path
 from threading import Lock
@@ -15,6 +17,7 @@ from src.core.config import Settings
 from src.core.models import EvidenceChunk
 
 _SOURCE_TOKEN_REGEX = re.compile(r"[^a-z0-9]+")
+_SPARSE_TOKEN_REGEX = re.compile(r"[a-z0-9]+")
 
 
 class VectorDbManager:
@@ -69,44 +72,38 @@ class VectorDbManager:
             return len(chunks)
 
     def search(self, query: str, top_k: int) -> list[EvidenceChunk]:
-        vector = self._embeddings.embed_query(query)
         fetch_limit = max(top_k * 20, 80)
-        response = self._client.query_points(
-            collection_name=self._settings.vector_collection_name,
-            query=vector,
-            limit=fetch_limit,
-            with_payload=True,
+        retrieval_mode = self._settings.retrieval_mode.strip().lower()
+        if retrieval_mode not in {"dense", "sparse", "hybrid"}:
+            retrieval_mode = "hybrid"
+
+        dense_candidates: list[EvidenceChunk] = []
+        sparse_candidates: list[EvidenceChunk] = []
+
+        if retrieval_mode in {"dense", "hybrid"}:
+            dense_candidates = self._search_dense(query=query, fetch_limit=fetch_limit)
+
+        if retrieval_mode in {"sparse", "hybrid"}:
+            sparse_candidates = self._search_sparse(query=query, fetch_limit=fetch_limit)
+
+        candidate_hits = self._fuse_candidates(
+            dense_candidates=dense_candidates,
+            sparse_candidates=sparse_candidates,
+            mode=retrieval_mode,
         )
 
-        candidate_hits: list[EvidenceChunk] = []
         stale_sources: set[str] = set()
-        for point in response.points:
-            payload = point.payload or {}
-            chunk_id = payload.get("chunk_id")
-            source = payload.get("source")
-            text = payload.get("text")
-            if (
-                not isinstance(chunk_id, str)
-                or not isinstance(source, str)
-                or not isinstance(text, str)
-            ):
+        filtered_hits: list[EvidenceChunk] = []
+        for hit in candidate_hits:
+            if not self._source_exists(hit.source):
+                stale_sources.add(hit.source)
                 continue
-            if not self._source_exists(source):
-                stale_sources.add(source)
-                continue
-            candidate_hits.append(
-                EvidenceChunk(
-                    chunk_id=chunk_id,
-                    source=source,
-                    text=text,
-                    score=float(point.score or 0.0),
-                )
-            )
+            filtered_hits.append(hit)
 
         if stale_sources:
             self.prune_stale_sources(stale_sources)
 
-        if not candidate_hits:
+        if not filtered_hits:
             return []
 
         # Keep retrieval robust for comparison questions by preferring source diversity
@@ -115,7 +112,7 @@ class VectorDbManager:
         selected_ids: set[str] = set()
         seen_sources: set[str] = set()
 
-        for hit in candidate_hits:
+        for hit in filtered_hits:
             if hit.source in seen_sources:
                 continue
             primary_hits.append(hit)
@@ -125,7 +122,7 @@ class VectorDbManager:
                 break
 
         if len(primary_hits) < top_k:
-            for hit in candidate_hits:
+            for hit in filtered_hits:
                 if hit.chunk_id in selected_ids:
                     continue
                 primary_hits.append(hit)
@@ -159,6 +156,138 @@ class VectorDbManager:
 
         max_hits = top_k + (top_k * neighbor_span * 2)
         return ordered_hits[:max_hits]
+
+    def _search_dense(self, *, query: str, fetch_limit: int) -> list[EvidenceChunk]:
+        vector = self._embeddings.embed_query(query)
+        response = self._client.query_points(
+            collection_name=self._settings.vector_collection_name,
+            query=vector,
+            limit=fetch_limit,
+            with_payload=True,
+        )
+
+        hits: list[EvidenceChunk] = []
+        for point in response.points:
+            payload = point.payload or {}
+            chunk_id = payload.get("chunk_id")
+            source = payload.get("source")
+            text = payload.get("text")
+            if (
+                not isinstance(chunk_id, str)
+                or not isinstance(source, str)
+                or not isinstance(text, str)
+            ):
+                continue
+            hits.append(
+                EvidenceChunk(
+                    chunk_id=chunk_id,
+                    source=source,
+                    text=text,
+                    score=float(point.score or 0.0),
+                )
+            )
+        return hits
+
+    def _search_sparse(self, *, query: str, fetch_limit: int) -> list[EvidenceChunk]:
+        query_terms = self._tokenize_for_sparse(query)
+        if not query_terms:
+            return []
+
+        documents: list[tuple[EvidenceChunk, Counter[str], int]] = []
+        document_frequency: Counter[str] = Counter()
+        total_length = 0
+
+        for chunk in self._chunk_lookup.values():
+            if not self._source_exists(chunk.source):
+                continue
+            tokens = self._tokenize_for_sparse(chunk.text)
+            if not tokens:
+                continue
+            tf = Counter(tokens)
+            length = len(tokens)
+            documents.append((chunk, tf, length))
+            total_length += length
+            for term in tf.keys():
+                document_frequency[term] += 1
+
+        if not documents:
+            return []
+
+        num_docs = len(documents)
+        avg_doc_len = max(1e-6, total_length / num_docs)
+        k1 = 1.2
+        b = 0.75
+        scored: list[EvidenceChunk] = []
+
+        for chunk, tf, doc_len in documents:
+            score = 0.0
+            for term in query_terms:
+                term_freq = tf.get(term, 0)
+                if term_freq == 0:
+                    continue
+                doc_freq = document_frequency.get(term, 0)
+                idf = math.log(1.0 + (num_docs - doc_freq + 0.5) / (doc_freq + 0.5))
+                denom = term_freq + k1 * (1.0 - b + b * (doc_len / avg_doc_len))
+                score += idf * ((term_freq * (k1 + 1.0)) / max(1e-6, denom))
+
+            if score > 0.0:
+                scored.append(chunk.model_copy(update={"score": score}))
+
+        scored.sort(key=lambda item: item.score, reverse=True)
+        return scored[:fetch_limit]
+
+    def _fuse_candidates(
+        self,
+        *,
+        dense_candidates: list[EvidenceChunk],
+        sparse_candidates: list[EvidenceChunk],
+        mode: str,
+    ) -> list[EvidenceChunk]:
+        if mode == "dense":
+            return dense_candidates
+        if mode == "sparse":
+            return sparse_candidates
+
+        dense_by_id = {item.chunk_id: item for item in dense_candidates}
+        sparse_by_id = {item.chunk_id: item for item in sparse_candidates}
+
+        dense_norm = self._normalize_scores(dense_candidates)
+        sparse_norm = self._normalize_scores(sparse_candidates)
+
+        dense_weight = max(0.0, self._settings.retrieval_dense_weight)
+        sparse_weight = max(0.0, self._settings.retrieval_sparse_weight)
+        if dense_weight == 0.0 and sparse_weight == 0.0:
+            dense_weight = 1.0
+
+        fused: list[EvidenceChunk] = []
+        all_ids = set(dense_by_id.keys()) | set(sparse_by_id.keys())
+        for chunk_id in all_ids:
+            dense_chunk = dense_by_id.get(chunk_id)
+            sparse_chunk = sparse_by_id.get(chunk_id)
+            base = dense_chunk or sparse_chunk
+            if base is None:
+                continue
+            score = dense_weight * dense_norm.get(chunk_id, 0.0) + sparse_weight * sparse_norm.get(chunk_id, 0.0)
+            fused.append(base.model_copy(update={"score": score}))
+
+        fused.sort(key=lambda item: item.score, reverse=True)
+        return fused
+
+    @staticmethod
+    def _normalize_scores(chunks: list[EvidenceChunk]) -> dict[str, float]:
+        if not chunks:
+            return {}
+        values = [item.score for item in chunks]
+        minimum = min(values)
+        maximum = max(values)
+        if maximum <= minimum:
+            return {item.chunk_id: 1.0 for item in chunks}
+        scale = maximum - minimum
+        return {item.chunk_id: (item.score - minimum) / scale for item in chunks}
+
+    @staticmethod
+    def _tokenize_for_sparse(text: str) -> list[str]:
+        return _SPARSE_TOKEN_REGEX.findall(text.lower())
 
     @staticmethod
     def _neighbor_chunk_ids(chunk_id: str, span: int) -> list[str]:

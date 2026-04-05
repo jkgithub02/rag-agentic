@@ -275,6 +275,37 @@ class QueryEchoReasoner(FakeReasoner):
         return f"ANSWER_QUERY={query}", ["bert-0001"], "llm", "v1.0.0"
 
 
+class CategoryDemoReasoner(FakeReasoner):
+    _rewrites = {
+        "tell me about attention": "Explain the attention mechanism in the uploaded transformer-related papers.",
+        "how does it handle context?": "Explain how context is represented and propagated in the uploaded transformer-related papers.",
+        "what's the training trick they use?": "Identify the self-supervised or pretraining objective used in the uploaded papers.",
+        "compare the models": "Compare model architecture, attention behavior, and training objective across the uploaded papers.",
+        "how does the model learn word relationships?": "Explain how embeddings and attention layers capture word relationships.",
+        "what self-supervised objective is used?": "Identify the masked language model or other self-supervised objective used by the model.",
+        "how is context aggregated?": "Explain how attention aggregates context across tokens.",
+    }
+
+    def analyze_query(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> tuple[QueryAnalysisOutput, str]:
+        del conversation_summary
+        rewritten = self._rewrites.get(query.strip().lower(), f"{query} in detail?")
+        return (
+            QueryAnalysisOutput(
+                is_clear=True,
+                questions=[rewritten],
+                rewritten_query=rewritten,
+                clarification_needed=None,
+                prompt_version="v1.0.0",
+            ),
+            "llm",
+        )
+
+
 class BrokenSynthesisReasoner(FakeReasoner):
     def synthesize_answer(
         self,
@@ -1161,6 +1192,62 @@ def test_comparison_query_uses_rewrite_driven_single_search() -> None:
     assert "transformer" in query
 
 
+def test_category6_ambiguous_queries_show_rewrite_trace() -> None:
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=CategoryDemoReasoner(),
+    )
+
+    prompts = [
+        "Tell me about attention",
+        "How does it handle context?",
+        "What's the training trick they use?",
+        "Compare the models",
+    ]
+
+    for prompt in prompts:
+        response = pipeline.ask(prompt)
+        trace = trace_store.get(response.trace_id)
+
+        assert trace is not None
+        assert trace.original_query == prompt
+        assert trace.rewritten_query != prompt
+        rewrite_events = [event for event in trace.events if event.stage == "rewrite_query"]
+        assert len(rewrite_events) == 1
+        assert rewrite_events[0].payload.get("rewritten") == trace.rewritten_query
+
+
+def test_category7_lexical_mismatch_queries_are_rewritten_to_technical_terms() -> None:
+    trace_store = TraceStore()
+    tools = QueryCaptureTools()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=tools,
+        trace_store=trace_store,
+        reasoner=CategoryDemoReasoner(),
+    )
+
+    cases = [
+        ("How does the model learn word relationships?", "attention"),
+        ("What self-supervised objective is used?", "masked language model"),
+        ("How is context aggregated?", "context"),
+    ]
+
+    for prompt, expected_term in cases:
+        before = len(tools.search_queries)
+        response = pipeline.ask(prompt)
+        trace = trace_store.get(response.trace_id)
+
+        assert trace is not None
+        assert response.safe_fail is False
+        assert len(tools.search_queries) == before + 1
+        rewritten_query = tools.search_queries[-1].lower()
+        assert expected_term in rewritten_query
+
+
 def test_missing_fetch_step_does_not_break_generation() -> None:
     trace_store = TraceStore()
     tools = HydratingTools(return_fetched=False)
@@ -1249,6 +1336,43 @@ def test_limit_exceeded_routes_to_fallback_response() -> None:
     stages = [event.stage for event in trace.events]
     assert "fallback_response" in stages
     assert "validate" not in stages
+
+
+def test_turn_scoped_counters_reset_between_messages_in_same_thread() -> None:
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        ambiguity_margin=0.03,
+        agent_max_tool_calls=8,
+    )
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(),
+    )
+
+    first = pipeline.ask("Tell me about attention", thread_id="session-counter-reset")
+    second = pipeline.ask("How is context aggregated?", thread_id="session-counter-reset")
+
+    first_trace = trace_store.get(first.trace_id)
+    second_trace = trace_store.get(second.trace_id)
+
+    assert first_trace is not None
+    assert second_trace is not None
+    assert first.safe_fail is False
+    assert second.safe_fail is False
+
+    first_gate = [event for event in first_trace.events if event.stage == "should_compress_context"]
+    second_gate = [event for event in second_trace.events if event.stage == "should_compress_context"]
+    assert len(first_gate) == 1
+    assert len(second_gate) == 1
+    assert first_gate[0].payload.get("iteration_count") == 1
+    assert first_gate[0].payload.get("tool_call_count") == 2
+    assert second_gate[0].payload.get("iteration_count") == 1
+    assert second_gate[0].payload.get("tool_call_count") == 2
 
 
 def test_verify_uses_cited_chunks_not_only_top_ranked_chunks() -> None:

@@ -32,7 +32,17 @@ class PipelineNodes:
     def summarize_history(self, state: PipelineState) -> PipelineState:
         history = state.get("history", [])
         conversation_summary = self._reasoner.summarize_conversation(history)
-        return {"conversation_summary": conversation_summary}
+        return {
+            "conversation_summary": conversation_summary,
+            "rewritten_queries": [],
+            "retrieval_keys": [],
+            "context_summary": "",
+            "compress_needed": False,
+            "iteration_count": 0,
+            "tool_call_count": 0,
+            "retrieval_attempted": False,
+            "limit_exceeded": False,
+        }
 
     def rewrite_query(self, state: PipelineState) -> PipelineState:
         original_query = " ".join(state["query"].split())

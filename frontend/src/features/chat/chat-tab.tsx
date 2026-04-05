@@ -4,7 +4,8 @@ import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { askQuestionStream, checkBackendHealth } from "@/lib/api-client";
+import { askQuestionStream, checkBackendHealth, getTrace } from "@/lib/api-client";
+import { type PipelineTrace } from "@/lib/types";
 
 const CHAT_HISTORY_KEY = "agentic_rag_chat_history_v1";
 
@@ -25,6 +26,32 @@ interface ChatHistorySession {
     threadId: string;
     updatedAt: string;
     messages: ChatMessage[];
+}
+
+function extractRewriteMetadata(trace: PipelineTrace): {
+    clarifyNeeded: boolean | null;
+    clarifyReason: string | null;
+    rewriteSource: string | null;
+} {
+    const rewriteEvent = trace.events.find((event) => event.stage === "rewrite_query");
+    if (!rewriteEvent) {
+        return {
+            clarifyNeeded: null,
+            clarifyReason: null,
+            rewriteSource: null,
+        };
+    }
+
+    const payload = rewriteEvent.payload;
+    const clarifyNeeded = typeof payload.clarify_needed === "boolean" ? payload.clarify_needed : null;
+    const clarifyReason = typeof payload.clarify_reason === "string" ? payload.clarify_reason : null;
+    const rewriteSource = typeof payload.rewrite_source === "string" ? payload.rewrite_source : null;
+
+    return {
+        clarifyNeeded,
+        clarifyReason,
+        rewriteSource,
+    };
 }
 
 function NewChatIcon() {
@@ -124,7 +151,9 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null);
+    const [tracesById, setTracesById] = useState<Record<string, PipelineTrace>>({});
     const messageContainerRef = useRef<HTMLDivElement | null>(null);
+    const requestedTraceIdsRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         if (!threadId.trim()) {
@@ -142,6 +171,42 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
             behavior: "smooth",
         });
     }, [messages, isLoading]);
+
+    useEffect(() => {
+        const traceIds = messages
+            .filter((message) => message.role === "assistant" && typeof message.traceId === "string")
+            .map((message) => message.traceId)
+            .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+        const missingIds = traceIds.filter((traceId) => {
+            if (tracesById[traceId]) {
+                return false;
+            }
+            if (requestedTraceIdsRef.current.has(traceId)) {
+                return false;
+            }
+            return true;
+        });
+
+        if (missingIds.length === 0) {
+            return;
+        }
+
+        for (const traceId of missingIds) {
+            requestedTraceIdsRef.current.add(traceId);
+        }
+
+        void Promise.all(
+            missingIds.map(async (traceId) => {
+                try {
+                    const trace = await getTrace(traceId);
+                    setTracesById((prev) => ({ ...prev, [traceId]: trace }));
+                } catch {
+                    // Keep chat experience resilient even when trace fetch fails.
+                }
+            }),
+        );
+    }, [messages, tracesById]);
 
     useEffect(() => {
         let active = true;
@@ -423,10 +488,54 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
                             ) : null}
 
                             {message.role === "assistant" && message.traceId ? (
-                                <p className="mt-2 text-[11px] text-[var(--ink-muted)]">
-                                    Trace ID: {message.traceId}
-                                    {message.safeFail ? " | Safe-fail" : ""}
-                                </p>
+                                <div className="mt-2 space-y-2 text-[11px] text-[var(--ink-muted)]">
+                                    <p>
+                                        Trace ID: {message.traceId}
+                                        {message.safeFail ? " | Safe-fail" : ""}
+                                    </p>
+                                    {tracesById[message.traceId] ? (
+                                        <details className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+                                            <summary className="cursor-pointer text-[11px] font-semibold text-[var(--ink)]">
+                                                Query Rewrite Trace
+                                            </summary>
+                                            <div className="mt-2 space-y-1 text-[11px] leading-5 text-[var(--ink)]">
+                                                <p>
+                                                    <span className="font-semibold">Original:</span>{" "}
+                                                    {tracesById[message.traceId].original_query}
+                                                </p>
+                                                <p>
+                                                    <span className="font-semibold">Rewritten:</span>{" "}
+                                                    {tracesById[message.traceId].rewritten_query}
+                                                </p>
+                                                {(() => {
+                                                    const metadata = extractRewriteMetadata(tracesById[message.traceId]);
+                                                    return (
+                                                        <>
+                                                            {metadata.rewriteSource ? (
+                                                                <p>
+                                                                    <span className="font-semibold">Source:</span>{" "}
+                                                                    {metadata.rewriteSource}
+                                                                </p>
+                                                            ) : null}
+                                                            {metadata.clarifyNeeded !== null ? (
+                                                                <p>
+                                                                    <span className="font-semibold">Clarify Needed:</span>{" "}
+                                                                    {metadata.clarifyNeeded ? "true" : "false"}
+                                                                </p>
+                                                            ) : null}
+                                                            {metadata.clarifyReason ? (
+                                                                <p>
+                                                                    <span className="font-semibold">Clarify Reason:</span>{" "}
+                                                                    {metadata.clarifyReason}
+                                                                </p>
+                                                            ) : null}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </details>
+                                    ) : null}
+                                </div>
                             ) : null}
                         </article>
                     )

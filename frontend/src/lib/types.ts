@@ -43,8 +43,6 @@ export interface PipelineTrace {
     trace_id: string;
     original_query: string;
     rewritten_query: string;
-    retry_triggered: boolean;
-    retry_reason: string | null;
     final_grounding_status: "supported" | "partial" | "unsupported";
     events: PipelineTraceEvent[];
 }
