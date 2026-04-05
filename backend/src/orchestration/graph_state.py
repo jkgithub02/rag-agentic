@@ -11,6 +11,14 @@ class PipelineState(TypedDict, total=False):
     conversation_summary: str
     original_query: str
     rewritten_query: str
+    rewritten_queries: list[str]
+    retrieval_keys: list[str]
+    context_summary: str
+    compress_needed: bool
+    iteration_count: int
+    tool_call_count: int
+    retrieval_attempted: bool
+    limit_exceeded: bool
     clarify_needed: bool
     clarify_message: str
     validation: ValidationResult

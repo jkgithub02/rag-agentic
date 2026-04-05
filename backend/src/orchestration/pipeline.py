@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from src.agent.tools import AgentTools
 from src.core.config import Settings
-from src.core.models import AskResponse, PipelineTrace
+from src.core.models import AskResponse, GroundingResult, GroundingStatus, PipelineTrace, TraceEvent
 from src.orchestration.edges import PipelineEdges
 from src.orchestration.graph import build_pipeline_graph
 from src.orchestration.nodes import PipelineNodes
@@ -47,6 +47,7 @@ class AgenticPipeline:
             },
             config={"configurable": {"thread_id": run_thread_id}},
         )
+        state = self._coerce_interrupted_clarification_state(state)
         trace: PipelineTrace = state["trace"]
         self._trace_store.save(trace)
 
@@ -63,6 +64,40 @@ class AgenticPipeline:
             safe_fail=state["safe_fail"],
             trace_id=trace.trace_id,
         )
+
+    @staticmethod
+    def _coerce_interrupted_clarification_state(state: dict[str, object]) -> dict[str, object]:
+        if not state.get("clarify_needed") or state.get("retrieval_attempted"):
+            return state
+
+        clarify_message = state.get("clarify_message")
+        if not isinstance(clarify_message, str) or not clarify_message.strip():
+            clarify_message = "Please ask a more specific question about the uploaded documents."
+
+        trace = state.get("trace")
+        if isinstance(trace, PipelineTrace):
+            if not any(event.stage == "clarify" for event in trace.events):
+                trace.events.append(
+                    TraceEvent(
+                        stage="clarify",
+                        payload={"message": clarify_message},
+                    )
+                )
+            if not any(event.stage == "answer" for event in trace.events):
+                trace.events.append(TraceEvent(stage="answer", payload={"safe_fail": True}))
+
+        coerced = dict(state)
+        coerced["answer"] = clarify_message
+        coerced["citations"] = []
+        coerced["safe_fail"] = True
+        coerced["grounding"] = GroundingResult(
+            status=GroundingStatus.UNSUPPORTED,
+            reason="Query is too vague and requires clarification.",
+        )
+        if isinstance(trace, PipelineTrace):
+            trace.final_grounding_status = GroundingStatus.UNSUPPORTED
+            coerced["trace"] = trace
+        return coerced
 
     def _load_thread_history(self, thread_id: str) -> list[dict[str, str]]:
         cached = self._thread_history.get(thread_id)
@@ -109,14 +144,5 @@ class AgenticPipeline:
 
     @staticmethod
     def _should_persist_assistant_turn(state: dict[str, object]) -> bool:
-        # Keep retrieval-backed answers in memory, but drop clarification safe-fails to reduce
-        # summary pollution and repeated clarification loops on follow-up turns.
-        if not state.get("safe_fail"):
-            return True
-
-        grounding = state.get("grounding")
-        if grounding is None:
-            return False
-
-        reason = getattr(grounding, "reason", "")
-        return reason != "Query is too vague and requires clarification."
+        del state
+        return True

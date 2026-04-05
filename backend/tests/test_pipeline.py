@@ -53,15 +53,11 @@ class FakeReasoner:
         grounding_reason: str = "Grounded in evidence.",
         synthesis_answer: str = "BERT pretraining uses masked language modeling.",
         synthesis_chunk_ids: list[str] | None = None,
-        coverage_insufficient: bool = False,
-        coverage_missing_terms: list[str] | None = None,
     ) -> None:
         self._grounding_status = grounding_status
         self._grounding_reason = grounding_reason
         self._synthesis_answer = synthesis_answer
         self._synthesis_chunk_ids = synthesis_chunk_ids or ["bert-0001"]
-        self._coverage_insufficient = coverage_insufficient
-        self._coverage_missing_terms = coverage_missing_terms or []
 
     def summarize_conversation(self, history: list[dict[str, str]]) -> str:
         if not history:
@@ -91,16 +87,6 @@ class FakeReasoner:
     ) -> tuple[str, list[str], str, str | None]:
         del query, chunks
         return self._synthesis_answer, self._synthesis_chunk_ids, "llm", "v1.0.0"
-
-    def detect_insufficient_coverage(
-        self,
-        *,
-        query: str,
-        answer: str,
-        chunks: list[EvidenceChunk],
-    ) -> tuple[bool, list[str], str, str | None]:
-        del query, answer, chunks
-        return self._coverage_insufficient, self._coverage_missing_terms, "llm", "v1.0.0"
 
     def assess_query_clarity(
         self,
@@ -207,6 +193,86 @@ class ConfirmationAwareReasoner(FakeReasoner):
             )
 
         return super().analyze_query(query=query, conversation_summary=conversation_summary)
+
+
+class MultiQuestionReasoner(FakeReasoner):
+    def analyze_query(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> tuple[QueryAnalysisOutput, str]:
+        del query, conversation_summary
+        return (
+            QueryAnalysisOutput(
+                is_clear=True,
+                questions=["What is BERT architecture?", "What is BERT pretraining?"],
+                rewritten_query="What is BERT architecture?",
+                clarification_needed=None,
+                prompt_version="v1.0.0",
+            ),
+            "llm",
+        )
+
+
+class ComparisonReasoner(FakeReasoner):
+    def analyze_query(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> tuple[QueryAnalysisOutput, str]:
+        del query, conversation_summary
+        rewritten = "How is attention used in BERT versus the original Transformer?"
+        return (
+            QueryAnalysisOutput(
+                is_clear=True,
+                questions=[rewritten],
+                rewritten_query=rewritten,
+                clarification_needed=None,
+                prompt_version="v1.0.0",
+            ),
+            "llm",
+        )
+
+
+class QueryCaptureTools:
+    def __init__(self) -> None:
+        self.search_queries: list[str] = []
+
+    def search_chunks(self, query: str, top_k: int) -> list[EvidenceChunk]:
+        del top_k
+        self.search_queries.append(query)
+        return [
+            EvidenceChunk(
+                chunk_id="bert-0001",
+                source="bert.pdf",
+                text="BERT attention is bidirectional.",
+                score=0.9,
+            )
+        ]
+
+    def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
+        del chunk_ids
+        return [
+            EvidenceChunk(
+                chunk_id="bert-0001",
+                source="bert.pdf",
+                text="BERT attention is bidirectional.",
+                score=0.9,
+            )
+        ]
+
+
+class QueryEchoReasoner(FakeReasoner):
+    def synthesize_answer(
+        self,
+        *,
+        query: str,
+        chunks: list[EvidenceChunk],
+    ) -> tuple[str, list[str], str, str | None]:
+        del chunks
+        return f"ANSWER_QUERY={query}", ["bert-0001"], "llm", "v1.0.0"
 
 
 class BrokenSynthesisReasoner(FakeReasoner):
@@ -362,29 +428,123 @@ class HydratingTools:
         ]
 
 
-class MismatchTools:
+class MultiQueryTools:
+    def __init__(self) -> None:
+        self.search_queries: list[str] = []
+        self.fetch_calls: list[list[str]] = []
+
+    def search_chunks(self, query: str, top_k: int) -> list[EvidenceChunk]:
+        del top_k
+        self.search_queries.append(query)
+        if "architecture" in query.lower():
+            return [
+                EvidenceChunk(
+                    chunk_id="bert-0001",
+                    source="bert.pdf",
+                    text="BERT architecture uses transformers.",
+                    score=0.81,
+                )
+            ]
+        return [
+            EvidenceChunk(
+                chunk_id="bert-0002",
+                source="bert.pdf",
+                text="BERT pretraining uses masked language modeling.",
+                score=0.79,
+            )
+        ]
+
+    def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
+        self.fetch_calls.append(list(chunk_ids))
+        records = {
+            "bert-0001": EvidenceChunk(
+                chunk_id="bert-0001",
+                source="bert.pdf",
+                text="BERT architecture uses transformers.",
+                score=0.92,
+            ),
+            "bert-0002": EvidenceChunk(
+                chunk_id="bert-0002",
+                source="bert.pdf",
+                text="BERT pretraining uses masked language modeling.",
+                score=0.9,
+            ),
+        }
+        return [records[item] for item in chunk_ids if item in records]
+
+
+class LongEvidenceTools:
     def search_chunks(self, query: str, top_k: int) -> list[EvidenceChunk]:
         del query, top_k
         return [
             EvidenceChunk(
-                chunk_id="bert-0001",
-                source="bert.pdf",
-                text="BERT uses masked language modeling.",
+                chunk_id="long-0001",
+                source="long.pdf",
+                text="X" * 12000,
                 score=0.8,
             )
         ]
 
     def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
-        if "bert-0001" in chunk_ids:
+        if "long-0001" in chunk_ids:
             return [
                 EvidenceChunk(
-                    chunk_id="bert-0001",
-                    source="bert.pdf",
-                    text="BERT uses masked language modeling.",
+                    chunk_id="long-0001",
+                    source="long.pdf",
+                    text="X" * 12000,
                     score=0.9,
                 )
             ]
         return []
+
+
+class CitedChunkOutsideTop3Tools:
+    def search_chunks(self, query: str, top_k: int) -> list[EvidenceChunk]:
+        del query, top_k
+        return [
+            EvidenceChunk(chunk_id="attn-0001", source="attention.pdf", text="Attention head details A.", score=0.92),
+            EvidenceChunk(chunk_id="attn-0002", source="attention.pdf", text="Attention head details B.", score=0.91),
+            EvidenceChunk(chunk_id="attn-0003", source="attention.pdf", text="Attention head details C.", score=0.90),
+            EvidenceChunk(chunk_id="bert-0004", source="bert.pdf", text="BERT_EVIDENCE: bidirectional MLM and NSP behavior.", score=0.89),
+        ]
+
+    def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
+        records = {
+            "attn-0001": EvidenceChunk(chunk_id="attn-0001", source="attention.pdf", text="Attention head details A.", score=0.92),
+            "attn-0002": EvidenceChunk(chunk_id="attn-0002", source="attention.pdf", text="Attention head details B.", score=0.91),
+            "attn-0003": EvidenceChunk(chunk_id="attn-0003", source="attention.pdf", text="Attention head details C.", score=0.90),
+            "bert-0004": EvidenceChunk(chunk_id="bert-0004", source="bert.pdf", text="BERT_EVIDENCE: bidirectional MLM and NSP behavior.", score=0.89),
+        }
+        return [records[item] for item in chunk_ids if item in records]
+
+
+class GroundingNeedsCitedBertReasoner(FakeReasoner):
+    def synthesize_answer(
+        self,
+        *,
+        query: str,
+        chunks: list[EvidenceChunk],
+    ) -> tuple[str, list[str], str, str | None]:
+        del query, chunks
+        return (
+            "BERT uses bidirectional attention-style contextualization while Transformer defines scaled dot-product attention.",
+            ["bert-0004"],
+            "llm",
+            "v1.0.0",
+        )
+
+    def assess_grounding(
+        self,
+        *,
+        answer: str,
+        citations: list[str],
+        evidence: list[str],
+    ) -> tuple[GroundingResult, str, str | None]:
+        del answer, citations
+        joined = "\n".join(evidence)
+        if "BERT_EVIDENCE" in joined:
+            return GroundingResult(status=GroundingStatus.SUPPORTED, reason="Grounded by cited BERT chunk."), "llm", "v1.0.0"
+        return GroundingResult(status=GroundingStatus.UNSUPPORTED, reason="Missing cited BERT chunk in grounding evidence."), "llm", "v1.0.0"
 
 
 def _settings() -> Settings:
@@ -436,7 +596,7 @@ def test_reasoner_rewrite_is_used_and_traced() -> None:
     assert rewrite_events[0].payload["rewrite_source"] == "llm"
 
 
-def test_vague_query_returns_clarification() -> None:
+def test_vague_query_retrieves_before_response() -> None:
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -448,14 +608,12 @@ def test_vague_query_returns_clarification() -> None:
     trace = trace_store.get(response.trace_id)
 
     assert trace is not None
-    assert response.safe_fail is True
-    assert response.answer == "clarity check"
     stages = [event.stage for event in trace.events]
-    assert "clarify" in stages
-    assert "retrieve" not in stages
+    assert "retrieve" in stages
+    assert "clarify" not in stages
 
 
-def test_analyze_query_failure_falls_back_to_clarification() -> None:
+def test_analyze_query_failure_still_retrieves() -> None:
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -468,15 +626,17 @@ def test_analyze_query_failure_falls_back_to_clarification() -> None:
     trace = trace_store.get(response.trace_id)
 
     assert trace is not None
-    assert response.safe_fail is True
-    assert response.answer == _settings().clarification_message
+    assert response.safe_fail is False
     rewrite_events = [event for event in trace.events if event.stage == "rewrite_query"]
     assert len(rewrite_events) == 1
     assert rewrite_events[0].payload["rewrite_source"] == "fallback-rule"
     assert rewrite_events[0].payload["analysis_error"] is not None
+    stages = [event.stage for event in trace.events]
+    assert "retrieve" in stages
+    assert "clarify" not in stages
 
 
-def test_concrete_intent_still_clarifies_when_model_marks_unclear() -> None:
+def test_concrete_intent_retrieves_when_model_marks_unclear() -> None:
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -490,11 +650,11 @@ def test_concrete_intent_still_clarifies_when_model_marks_unclear() -> None:
 
     assert trace is not None
     stages = [event.stage for event in trace.events]
-    assert "clarify" in stages
-    assert "retrieve" not in stages
+    assert "retrieve" in stages
+    assert "clarify" not in stages
 
 
-def test_explicit_source_query_still_clarifies_when_model_marks_unclear() -> None:
+def test_explicit_source_query_retrieves_when_model_marks_unclear() -> None:
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -508,24 +668,29 @@ def test_explicit_source_query_still_clarifies_when_model_marks_unclear() -> Non
 
     assert trace is not None
     stages = [event.stage for event in trace.events]
-    assert "clarify" in stages
-    assert "retrieve" not in stages
+    assert "retrieve" in stages
+    assert "clarify" not in stages
 
 
-def test_clarification_uses_model_message() -> None:
-    settings = _settings()
+def test_model_clarification_signal_is_traced_but_retrieval_runs() -> None:
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
-        settings=settings,
+        settings=_settings(),
         tools=FakeTools(),
         trace_store=trace_store,
         reasoner=AlwaysUnclearReasoner(),
     )
 
     response = pipeline.ask("hi")
+    trace = trace_store.get(response.trace_id)
 
-    assert response.safe_fail is True
-    assert response.answer == "force clarification"
+    assert trace is not None
+    rewrite_events = [event for event in trace.events if event.stage == "rewrite_query"]
+    assert len(rewrite_events) == 1
+    assert rewrite_events[0].payload["clarify_needed"] is True
+    stages = [event.stage for event in trace.events]
+    assert "retrieve" in stages
+    assert "clarify" not in stages
 
 
 def test_followup_query_uses_thread_context_summary() -> None:
@@ -570,10 +735,10 @@ def test_confirmation_followup_uses_prior_user_context_without_reclarifying(tmp_
     first_trace = trace_store.get(first.trace_id)
 
     assert first_trace is not None
-    assert first.safe_fail is True
-    assert pipeline._load_thread_history(thread_id) == [
-        {"role": "user", "content": "Who is Jason Kong"}
-    ]
+    assert first.safe_fail is False
+    first_stages = [event.stage for event in first_trace.events]
+    assert "retrieve" in first_stages
+    assert "clarify" not in first_stages
 
     second = pipeline.ask("yes, in the available documents", thread_id=thread_id)
     second_trace = trace_store.get(second.trace_id)
@@ -585,7 +750,27 @@ def test_confirmation_followup_uses_prior_user_context_without_reclarifying(tmp_
     assert "retrieve" in second_stages
 
 
-def test_ambiguous_results_fail_without_retry() -> None:
+def test_generation_uses_rewritten_query_not_confirmation_text() -> None:
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=QueryEchoReasoner(),
+    )
+
+    response = pipeline.ask("yes, I am asking from the docs uploaded")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is False
+    rewrite_events = [event for event in trace.events if event.stage == "rewrite_query"]
+    assert len(rewrite_events) == 1
+    rewritten = str(rewrite_events[0].payload.get("rewritten", ""))
+    assert response.answer == f"ANSWER_QUERY={rewritten}"
+
+
+def test_ambiguous_results_no_longer_hard_fail() -> None:
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -597,14 +782,14 @@ def test_ambiguous_results_fail_without_retry() -> None:
         settings=settings,
         tools=AmbiguousTools(),
         trace_store=trace_store,
-        reasoner=FakeReasoner(),
+        reasoner=FakeReasoner(synthesis_chunk_ids=["a-0001"]),
     )
     response = pipeline.ask("What is the best source?")
     trace = trace_store.get(response.trace_id)
 
     assert trace is not None
-    assert response.safe_fail is True
-    assert response.answer == settings.safe_fail_message
+    assert response.safe_fail is False
+    assert response.citations == ["A.pdf#a-0001"]
     stages = [event.stage for event in trace.events]
     assert "retry" not in stages
 
@@ -703,7 +888,7 @@ def test_search_across_docs_followup_bypasses_clarification() -> None:
     assert "retrieve" in stages
 
 
-def test_ambiguous_top_two_sources_fail_without_retry() -> None:
+def test_ambiguous_top_two_sources_no_longer_hard_fail() -> None:
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -722,8 +907,8 @@ def test_ambiguous_top_two_sources_fail_without_retry() -> None:
     trace = trace_store.get(response.trace_id)
 
     assert trace is not None
-    assert response.safe_fail is True
-    assert response.citations == []
+    assert response.safe_fail is False
+    assert response.citations == ["A.pdf#a-0001"]
     stages = [event.stage for event in trace.events]
     assert "retry" not in stages
 
@@ -932,6 +1117,50 @@ def test_fetch_chunks_by_ids_is_used_in_reference_retrieval_flow() -> None:
     assert "hydrate" not in stages
 
 
+def test_multi_question_rewrite_fans_out_retrieval_queries() -> None:
+    trace_store = TraceStore()
+    tools = MultiQueryTools()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=tools,
+        trace_store=trace_store,
+        reasoner=MultiQuestionReasoner(),
+    )
+
+    response = pipeline.ask("Explain BERT")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is False
+    assert len(tools.search_queries) == 2
+    assert len(tools.fetch_calls) == 1
+    assert tools.fetch_calls[0] == ["bert-0001", "bert-0002"]
+
+    search_events = [event for event in trace.events if event.stage == "tool_search_chunks"]
+    assert len(search_events) == 2
+
+
+def test_comparison_query_uses_rewrite_driven_single_search() -> None:
+    trace_store = TraceStore()
+    tools = QueryCaptureTools()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=tools,
+        trace_store=trace_store,
+        reasoner=ComparisonReasoner(),
+    )
+
+    response = pipeline.ask("Compare BERT vs Transformer")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is False
+    assert len(tools.search_queries) == 1
+    query = tools.search_queries[0].lower()
+    assert "bert" in query
+    assert "transformer" in query
+
+
 def test_missing_fetch_step_does_not_break_generation() -> None:
     trace_store = TraceStore()
     tools = HydratingTools(return_fetched=False)
@@ -952,6 +1181,93 @@ def test_missing_fetch_step_does_not_break_generation() -> None:
     assert all(event.stage != "hydrate_fallback" for event in trace.events)
 
 
+def test_should_compress_context_triggers_for_large_evidence() -> None:
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        ambiguity_margin=0.03,
+        context_compression_base_threshold=100,
+    )
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=LongEvidenceTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(),
+    )
+
+    response = pipeline.ask("summarise long evidence")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    stages = [event.stage for event in trace.events]
+    assert "should_compress_context" in stages
+    assert "compress_context" in stages
+
+
+def test_should_compress_context_skips_for_small_evidence() -> None:
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(),
+    )
+
+    response = pipeline.ask("What is BERT pretraining?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    stages = [event.stage for event in trace.events]
+    assert "should_compress_context" in stages
+    assert "compress_context" not in stages
+
+
+def test_limit_exceeded_routes_to_fallback_response() -> None:
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        ambiguity_margin=0.03,
+        agent_max_tool_calls=0,
+    )
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(),
+    )
+
+    response = pipeline.ask("What is BERT pretraining?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is True
+    assert response.answer == settings.safe_fail_message
+    stages = [event.stage for event in trace.events]
+    assert "fallback_response" in stages
+    assert "validate" not in stages
+
+
+def test_verify_uses_cited_chunks_not_only_top_ranked_chunks() -> None:
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=CitedChunkOutsideTop3Tools(),
+        trace_store=trace_store,
+        reasoner=GroundingNeedsCitedBertReasoner(),
+    )
+
+    response = pipeline.ask("How is attention used in BERT vs Transformer?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is False
+    assert response.citations == ["bert.pdf#bert-0004"]
+
+
 def test_no_hit_safe_fail_uses_deterministic_message() -> None:
     settings = _settings()
     trace_store = TraceStore()
@@ -966,6 +1282,25 @@ def test_no_hit_safe_fail_uses_deterministic_message() -> None:
 
     assert response.safe_fail is True
     assert response.answer == settings.safe_fail_message
+
+
+def test_coerce_clarification_overrides_stale_answer_when_needed() -> None:
+    trace = PipelineTrace(original_query="q", rewritten_query="q")
+    state = {
+        "clarify_needed": True,
+        "clarify_message": "Need clarification.",
+        "answer": "stale answer",
+        "safe_fail": False,
+        "citations": ["x"],
+        "trace": trace,
+    }
+
+    coerced = AgenticPipeline._coerce_interrupted_clarification_state(state)
+
+    assert coerced["answer"] == "Need clarification."
+    assert coerced["safe_fail"] is True
+    assert coerced["citations"] == []
+    assert any(event.stage == "clarify" for event in trace.events)
 def test_unsupported_grounding_uses_default_safe_fail_message() -> None:
     settings = _settings()
     trace_store = TraceStore()
@@ -983,53 +1318,6 @@ def test_unsupported_grounding_uses_default_safe_fail_message() -> None:
 
     assert response.safe_fail is True
     assert response.answer == settings.safe_fail_message
-
-
-def test_query_coverage_guard_forces_unsupported() -> None:
-    trace_store = TraceStore()
-    pipeline = AgenticPipeline(
-        settings=_settings(),
-        tools=MismatchTools(),
-        trace_store=trace_store,
-        reasoner=FakeReasoner(
-            grounding_status=GroundingStatus.SUPPORTED,
-            grounding_reason="Looks supported.",
-            synthesis_answer="No quantum method is described for BERT.",
-            synthesis_chunk_ids=["bert-0001"],
-            coverage_insufficient=True,
-            coverage_missing_terms=["quantum"],
-        ),
-    )
-
-    response = pipeline.ask("What quantum method does BERT use?")
-    trace = trace_store.get(response.trace_id)
-
-    assert trace is not None
-    assert response.safe_fail is True
-    assert response.citations == []
-    verify_events = [event for event in trace.events if event.stage == "verify_grounding"]
-    assert len(verify_events) == 1
-    assert verify_events[0].payload["grounding_source"] == "llm-insufficient-coverage"
-
-
-def test_summary_query_with_sparse_single_source_evidence_still_honors_coverage_gate() -> None:
-    trace_store = TraceStore()
-    pipeline = AgenticPipeline(
-        settings=_settings(),
-        tools=FakeTools(),
-        trace_store=trace_store,
-        reasoner=FakeReasoner(
-            grounding_status=GroundingStatus.SUPPORTED,
-            grounding_reason="Looks supported.",
-            coverage_insufficient=True,
-            coverage_missing_terms=["experience"],
-        ),
-    )
-
-    response = pipeline.ask("Summarise the resume")
-
-    assert response.safe_fail is True
-    assert response.citations == []
 
 
 def test_pipeline_invokes_graph_with_thread_id_config(monkeypatch: pytest.MonkeyPatch) -> None:

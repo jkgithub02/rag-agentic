@@ -52,8 +52,6 @@ class PipelineTrace(BaseModel):
     trace_id: str = Field(default_factory=lambda: str(uuid4()))
     original_query: str
     rewritten_query: str
-    retry_triggered: bool = False
-    retry_reason: str | None = None
     final_grounding_status: GroundingStatus = GroundingStatus.UNSUPPORTED
     events: list[TraceEvent] = Field(default_factory=list)
 
@@ -72,6 +70,7 @@ class AskResponse(BaseModel):
 
 class QueryAnalysisOutput(BaseModel):
     is_clear: bool
+    questions: list[str] = Field(default_factory=list)
     rewritten_query: str | None = None
     clarification_needed: str | None = None
     prompt_version: str | None = None
@@ -86,13 +85,6 @@ class GroundingCheckOutput(BaseModel):
 class AnswerSynthesisOutput(BaseModel):
     answer: str
     citation_chunk_ids: list[str] = Field(default_factory=list)
-    prompt_version: str | None = None
-
-
-class CoverageCheckOutput(BaseModel):
-    unsupported: bool
-    missing_terms: list[str] = Field(default_factory=list)
-    reason: str
     prompt_version: str | None = None
 
 

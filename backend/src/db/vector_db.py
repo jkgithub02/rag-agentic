@@ -70,7 +70,7 @@ class VectorDbManager:
 
     def search(self, query: str, top_k: int) -> list[EvidenceChunk]:
         vector = self._embeddings.embed_query(query)
-        fetch_limit = max(top_k * 8, 24)
+        fetch_limit = max(top_k * 20, 80)
         response = self._client.query_points(
             collection_name=self._settings.vector_collection_name,
             query=vector,
@@ -78,7 +78,7 @@ class VectorDbManager:
             with_payload=True,
         )
 
-        hits: list[EvidenceChunk] = []
+        candidate_hits: list[EvidenceChunk] = []
         stale_sources: set[str] = set()
         for point in response.points:
             payload = point.payload or {}
@@ -94,7 +94,7 @@ class VectorDbManager:
             if not self._source_exists(source):
                 stale_sources.add(source)
                 continue
-            hits.append(
+            candidate_hits.append(
                 EvidenceChunk(
                     chunk_id=chunk_id,
                     source=source,
@@ -102,13 +102,80 @@ class VectorDbManager:
                     score=float(point.score or 0.0),
                 )
             )
-            if len(hits) >= top_k:
-                break
 
         if stale_sources:
             self.prune_stale_sources(stale_sources)
 
-        return hits
+        if not candidate_hits:
+            return []
+
+        # Keep retrieval robust for comparison questions by preferring source diversity
+        # in the primary top_k set when multiple sources are available.
+        primary_hits: list[EvidenceChunk] = []
+        selected_ids: set[str] = set()
+        seen_sources: set[str] = set()
+
+        for hit in candidate_hits:
+            if hit.source in seen_sources:
+                continue
+            primary_hits.append(hit)
+            selected_ids.add(hit.chunk_id)
+            seen_sources.add(hit.source)
+            if len(primary_hits) >= top_k:
+                break
+
+        if len(primary_hits) < top_k:
+            for hit in candidate_hits:
+                if hit.chunk_id in selected_ids:
+                    continue
+                primary_hits.append(hit)
+                selected_ids.add(hit.chunk_id)
+                if len(primary_hits) >= top_k:
+                    break
+
+        neighbor_span = max(0, self._settings.retrieval_neighbor_span)
+        if neighbor_span == 0 or not primary_hits:
+            return primary_hits
+
+        ordered_hits: list[EvidenceChunk] = list(primary_hits)
+        seen_ids = {chunk.chunk_id for chunk in ordered_hits}
+        score_by_id = {chunk.chunk_id: chunk.score for chunk in primary_hits}
+
+        for chunk in primary_hits:
+            for neighbor_id in self._neighbor_chunk_ids(chunk.chunk_id, neighbor_span):
+                if neighbor_id in seen_ids:
+                    continue
+                neighbor_chunk = self._chunk_lookup.get(neighbor_id)
+                if neighbor_chunk is None or neighbor_chunk.source != chunk.source:
+                    continue
+                seen_ids.add(neighbor_id)
+                ordered_hits.append(
+                    neighbor_chunk.model_copy(
+                        update={
+                            "score": score_by_id.get(chunk.chunk_id, chunk.score) * 0.98,
+                        }
+                    )
+                )
+
+        max_hits = top_k + (top_k * neighbor_span * 2)
+        return ordered_hits[:max_hits]
+
+    @staticmethod
+    def _neighbor_chunk_ids(chunk_id: str, span: int) -> list[str]:
+        prefix, sep, suffix = chunk_id.rpartition("-")
+        if not sep or not suffix.isdigit():
+            return []
+
+        index = int(suffix)
+        width = len(suffix)
+        neighbors: list[str] = []
+        for offset in range(1, span + 1):
+            left = index - offset
+            right = index + offset
+            if left >= 0:
+                neighbors.append(f"{prefix}-{left:0{width}d}")
+            neighbors.append(f"{prefix}-{right:0{width}d}")
+        return neighbors
 
     def fetch_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
         return [self._chunk_lookup[cid] for cid in chunk_ids if cid in self._chunk_lookup]

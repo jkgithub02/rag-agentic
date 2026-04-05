@@ -3,10 +3,10 @@ from __future__ import annotations
 from src.agent.tools import AgentTools
 from src.core.config import Settings
 from src.core.models import (
+    EvidenceChunk,
     GroundingResult,
     GroundingStatus,
     PipelineTrace,
-    ResponseCategory,
     TraceEvent,
     ValidationResult,
     ValidationStatus,
@@ -39,6 +39,7 @@ class PipelineNodes:
         conversation_summary = state.get("conversation_summary", "")
         clarify_needed = True
         rewritten_query = original_query
+        rewritten_queries = [original_query]
         clarify_message = self._settings.clarification_message
         rewrite_source = "fallback-rule"
         clarity_reason = "Fallback clarification."
@@ -54,6 +55,8 @@ class PipelineNodes:
             )
             clarify_needed = not analysis.is_clear
             rewritten_query = analysis.rewritten_query or original_query
+            rewritten_questions = [q.strip() for q in analysis.questions if isinstance(q, str) and q.strip()]
+            rewritten_queries = rewritten_questions or [rewritten_query]
             clarify_message = analysis.clarification_needed or self._settings.clarification_message
             rewrite_source = analysis_source
             clarity_reason = (
@@ -72,6 +75,7 @@ class PipelineNodes:
                 "original": original_query,
                 "conversation_summary": conversation_summary,
                 "rewritten": rewritten_query,
+                "rewritten_questions": rewritten_queries,
                 "rewrite_source": rewrite_source,
                 "prompt_version": analysis_prompt_version,
                 "clarify_needed": clarify_needed,
@@ -85,28 +89,150 @@ class PipelineNodes:
             "original_query": original_query,
             "conversation_summary": conversation_summary,
             "rewritten_query": rewritten_query,
+            "rewritten_queries": rewritten_queries,
             "clarify_needed": clarify_needed,
             "clarify_message": clarify_message,
             "trace": trace,
         }
 
     def clarify(self, state: PipelineState) -> PipelineState:
+        del state
+        return {}
+
+    def retrieve(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
-        answer = state.get("clarify_message") or self._settings.clarification_message
-        response_source = "settings-default"
-        prompt_version: str | None = None
+        rewritten_queries = state.get("rewritten_queries") or [state["rewritten_query"]]
+
+        deduped_queries: list[str] = []
+        seen_queries: set[str] = set()
+        for query in rewritten_queries:
+            key = query.strip().lower()
+            if not key or key in seen_queries:
+                continue
+            seen_queries.add(key)
+            deduped_queries.append(query)
+
+        merged_hits: list[EvidenceChunk] = []
+        score_by_id: dict[str, float] = {}
+        for query in deduped_queries:
+            self._event(trace, "tool_search_chunks", {"query": query})
+            search_hits = self._tools.search_chunks(query, self._settings.retrieval_top_k)
+            for hit in search_hits:
+                if hit.chunk_id not in score_by_id:
+                    merged_hits.append(hit)
+                    score_by_id[hit.chunk_id] = hit.score
+
+        chunk_ids = [chunk.chunk_id for chunk in merged_hits]
+        self._event(trace, "tool_fetch_chunks_by_ids", {"chunk_ids": chunk_ids})
+        fetched_chunks = self._tools.fetch_chunks_by_ids(chunk_ids)
+
+        if fetched_chunks:
+            chunks = [
+                chunk.model_copy(update={"score": score_by_id.get(chunk.chunk_id, chunk.score)})
+                for chunk in fetched_chunks
+            ]
+        else:
+            chunks = merged_hits
+
+        self._event(trace, "retrieve", {"hits": [c.model_dump() for c in chunks]})
+        retrieval_keys = [
+            *(f"search::{query}" for query in deduped_queries),
+            *(f"chunk::{chunk_id}" for chunk_id in chunk_ids),
+        ]
+        iteration_count = state.get("iteration_count", 0) + 1
+        tool_call_count = state.get("tool_call_count", 0) + len(deduped_queries) + 1
+        return {
+            "chunks": chunks,
+            "trace": trace,
+            "retrieval_keys": retrieval_keys,
+            "iteration_count": iteration_count,
+            "tool_call_count": tool_call_count,
+            "retrieval_attempted": True,
+        }
+
+    def should_compress_context(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        chunks = state.get("chunks", [])
+        existing_summary = state.get("context_summary", "")
+
+        # Lightweight token estimate to mirror reference threshold-gate behavior.
+        current_chars = sum(len(chunk.text) for chunk in chunks)
+        summary_chars = len(existing_summary)
+        estimated_tokens = (current_chars + summary_chars) // 4
+        max_allowed = self._settings.context_compression_base_threshold + int(
+            (summary_chars // 4) * self._settings.context_compression_growth_factor
+        )
+        compress_needed = estimated_tokens > max_allowed
+        iteration_count = state.get("iteration_count", 0)
+        tool_call_count = state.get("tool_call_count", 0)
+        limit_exceeded = (
+            iteration_count >= self._settings.agent_max_iterations
+            or tool_call_count > self._settings.agent_max_tool_calls
+        )
+
+        self._event(
+            trace,
+            "should_compress_context",
+            {
+                "estimated_tokens": estimated_tokens,
+                "max_allowed": max_allowed,
+                "compress_needed": compress_needed,
+                "iteration_count": iteration_count,
+                "tool_call_count": tool_call_count,
+                "limit_exceeded": limit_exceeded,
+            },
+        )
+        return {
+            "compress_needed": compress_needed,
+            "limit_exceeded": limit_exceeded,
+            "trace": trace,
+        }
+
+    def compress_context(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        chunks = state.get("chunks", [])
+        existing_summary = state.get("context_summary", "")
+
+        summary_input: list[dict[str, str]] = []
+        if existing_summary.strip():
+            summary_input.append(
+                {
+                    "role": "assistant",
+                    "content": f"Prior compressed context: {existing_summary.strip()}",
+                }
+            )
+        for chunk in chunks[:8]:
+            summary_input.append(
+                {
+                    "role": "assistant",
+                    "content": f"[{chunk.source}#{chunk.chunk_id}] {chunk.text[:320]}",
+                }
+            )
+
+        context_summary = self._reasoner.summarize_conversation(summary_input)
+        self._event(
+            trace,
+            "compress_context",
+            {
+                "summary_length": len(context_summary),
+                "evidence_count": len(chunks),
+            },
+        )
+        return {"context_summary": context_summary, "trace": trace}
+
+    def fallback_response(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        answer = self._settings.safe_fail_message
         grounding = GroundingResult(
             status=GroundingStatus.UNSUPPORTED,
-            reason="Query is too vague and requires clarification.",
+            reason="Fallback triggered by agent loop limits.",
         )
         self._event(
             trace,
-            "clarify",
+            "fallback_response",
             {
-                "message": answer,
-                "response_category": ResponseCategory.CLARIFICATION,
-                "response_source": response_source,
-                "prompt_version": prompt_version,
+                "iteration_count": state.get("iteration_count", 0),
+                "tool_call_count": state.get("tool_call_count", 0),
             },
         )
         return {
@@ -116,27 +242,6 @@ class PipelineNodes:
             "grounding": grounding,
             "trace": trace,
         }
-
-    def retrieve(self, state: PipelineState) -> PipelineState:
-        trace = state["trace"]
-        self._event(trace, "tool_search_chunks", {"query": state["rewritten_query"]})
-        search_hits = self._tools.search_chunks(state["rewritten_query"], self._settings.retrieval_top_k)
-
-        chunk_ids = [chunk.chunk_id for chunk in search_hits]
-        self._event(trace, "tool_fetch_chunks_by_ids", {"chunk_ids": chunk_ids})
-        fetched_chunks = self._tools.fetch_chunks_by_ids(chunk_ids)
-
-        if fetched_chunks:
-            score_by_id = {chunk.chunk_id: chunk.score for chunk in search_hits}
-            chunks = [
-                chunk.model_copy(update={"score": score_by_id.get(chunk.chunk_id, chunk.score)})
-                for chunk in fetched_chunks
-            ]
-        else:
-            chunks = search_hits
-
-        self._event(trace, "retrieve", {"hits": [c.model_dump() for c in chunks]})
-        return {"chunks": chunks, "trace": trace}
 
     def validate(self, state: PipelineState) -> PipelineState:
         chunks = state["chunks"]
@@ -154,16 +259,6 @@ class PipelineNodes:
                     reason="Top score below threshold.",
                     confidence=top_score,
                 )
-            elif (
-                len(chunks) >= 2
-                and (chunks[0].score - chunks[1].score) < self._settings.ambiguity_margin
-                and chunks[0].source != chunks[1].source
-            ):
-                validation = ValidationResult(
-                    status=ValidationStatus.FAIL,
-                    reason="Top two hits are ambiguous.",
-                    confidence=top_score,
-                )
             else:
                 validation = ValidationResult(
                     status=ValidationStatus.PASS,
@@ -178,7 +273,7 @@ class PipelineNodes:
     def generate(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         if state["validation"].status == ValidationStatus.FAIL:
-            answer, response_category, response_source, prompt_version = (
+            answer, response_source, prompt_version = (
                 self._generate_safe_fail(state)
             )
             self._event(
@@ -187,7 +282,6 @@ class PipelineNodes:
                 {
                     "safe_fail": True,
                     "answer": answer,
-                    "response_category": response_category,
                     "response_source": response_source,
                     "prompt_version": prompt_version,
                 },
@@ -205,7 +299,7 @@ class PipelineNodes:
                     confidence=state["validation"].confidence,
                 ),
             }
-            answer, response_category, response_source, prompt_version = (
+            answer, response_source, prompt_version = (
                 self._generate_safe_fail(forced_state)
             )
             self._event(
@@ -214,7 +308,6 @@ class PipelineNodes:
                 {
                     "safe_fail": True,
                     "answer": answer,
-                    "response_category": response_category,
                     "response_source": response_source,
                     "prompt_version": prompt_version,
                     "fallback_reason": str(exc),
@@ -239,35 +332,33 @@ class PipelineNodes:
         answer = state["answer"]
         citations = state["citations"]
         safe_fail = state["safe_fail"]
-        coverage_missing_terms: list[str] = []
-        coverage_source: str | None = None
-        coverage_prompt_version: str | None = None
 
         if state["safe_fail"]:
             grounding = GroundingResult(status=GroundingStatus.UNSUPPORTED, reason="No evidence.")
             grounding_source = "pre-gated-safe-fail"
             prompt_version: str | None = None
         else:
-            evidence = [chunk.text[:240] for chunk in state.get("chunks", [])[:3]]
+            chunks = state.get("chunks", [])
+            chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
+
+            # Grounding should inspect the same evidence used for cited claims.
+            cited_chunk_ids = [
+                citation.split("#", 1)[1]
+                for citation in citations
+                if isinstance(citation, str) and "#" in citation
+            ]
+            cited_chunks = [chunk_by_id[chunk_id] for chunk_id in cited_chunk_ids if chunk_id in chunk_by_id]
+
+            if cited_chunks:
+                evidence_chunks = cited_chunks
+            else:
+                evidence_chunks = chunks[:6]
+
+            evidence = [chunk.text[:500] for chunk in evidence_chunks[:6]]
             grounding, grounding_source, prompt_version = self._reasoner.assess_grounding(
                 answer=answer,
                 citations=citations,
                 evidence=evidence,
-            )
-
-            (
-                grounding,
-                grounding_source,
-                prompt_version,
-                coverage_missing_terms,
-                coverage_source,
-                coverage_prompt_version,
-            ) = self._apply_coverage_gate(
-                state=state,
-                answer=answer,
-                grounding=grounding,
-                grounding_source=grounding_source,
-                prompt_version=prompt_version,
             )
 
             if grounding.status == GroundingStatus.UNSUPPORTED:
@@ -278,9 +369,6 @@ class PipelineNodes:
         payload = grounding.model_dump()
         payload["grounding_source"] = grounding_source
         payload["prompt_version"] = prompt_version
-        payload["coverage_missing_terms"] = coverage_missing_terms
-        payload["coverage_source"] = coverage_source
-        payload["coverage_prompt_version"] = coverage_prompt_version
         payload["reason_source"] = "model"
         payload["reason_prompt_version"] = None
 
@@ -305,23 +393,21 @@ class PipelineNodes:
 
     def _generate_safe_fail(
         self, state: PipelineState
-    ) -> tuple[str, ResponseCategory, str, str | None]:
+    ) -> tuple[str, str, str | None]:
+        del state
         answer = self._settings.safe_fail_message
-        response_category = ResponseCategory.SAFE_FAIL
         response_source = "settings-default"
         prompt_version: str | None = None
-        no_hits = state["validation"].reason.strip().lower().startswith("no retrieval hits")
-        if no_hits:
-            return answer, response_category, response_source, prompt_version
-        return answer, response_category, response_source, prompt_version
+        return answer, response_source, prompt_version
 
     def _generate_supported(
         self, state: PipelineState
     ) -> tuple[str, list[str], str, str | None]:
         chunks = state.get("chunks", [])
         chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
+        query_for_generation = state.get("rewritten_query") or state.get("original_query", "")
         answer, citation_chunk_ids, generation_source, prompt_version = (
-            self._reasoner.synthesize_answer(query=state["original_query"], chunks=chunks)
+            self._reasoner.synthesize_answer(query=query_for_generation, chunks=chunks)
         )
         citations = [
             f"{chunk_by_id[chunk_id].source}#{chunk_id}"
@@ -334,47 +420,4 @@ class PipelineNodes:
             )
         return answer, citations, generation_source, prompt_version
 
-    def _apply_coverage_gate(
-        self,
-        *,
-        state: PipelineState,
-        answer: str,
-        grounding: GroundingResult,
-        grounding_source: str,
-        prompt_version: str | None,
-    ) -> tuple[GroundingResult, str, str | None, list[str], str | None, str | None]:
-        coverage_missing_terms: list[str] = []
-        coverage_source: str | None = None
-        coverage_prompt_version: str | None = None
-
-        evidence_for_coverage = state.get("chunks", [])
-        (
-            insufficient_coverage,
-            coverage_missing_terms,
-            coverage_source,
-            coverage_prompt_version,
-        ) = self._reasoner.detect_insufficient_coverage(
-            query=state["original_query"],
-            answer=answer,
-            chunks=evidence_for_coverage,
-        )
-
-        if grounding.status == GroundingStatus.SUPPORTED and insufficient_coverage:
-            grounding = GroundingResult(
-                status=GroundingStatus.UNSUPPORTED,
-                reason=(
-                    "Evidence does not cover key query terms: " + ", ".join(coverage_missing_terms)
-                ),
-            )
-            grounding_source = "llm-insufficient-coverage"
-            prompt_version = None
-
-        return (
-            grounding,
-            grounding_source,
-            prompt_version,
-            coverage_missing_terms,
-            coverage_source,
-            coverage_prompt_version,
-        )
 

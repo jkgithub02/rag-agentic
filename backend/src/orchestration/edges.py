@@ -8,10 +8,11 @@ class PipelineEdges:
         pass
 
     def route_after_rewrite(self, state: PipelineState) -> str:
-        if state.get("clarify_needed"):
-            return "clarify"
         return "retrieve"
 
-    def route_after_validate(self, state: PipelineState) -> str:
-        del state
-        return "generate"
+    def route_after_should_compress(self, state: PipelineState) -> str:
+        if state.get("limit_exceeded"):
+            return "fallback_response"
+        if state.get("compress_needed"):
+            return "compress_context"
+        return "validate"

@@ -85,16 +85,6 @@ class _DeterministicReasoner:
         del answer, citations, evidence
         return GroundingResult(status=GroundingStatus.SUPPORTED, reason="Grounded."), "llm", "test-v1"
 
-    def detect_insufficient_coverage(
-        self,
-        *,
-        query: str,
-        answer: str,
-        chunks: list,
-    ) -> tuple[bool, list[str], str, str | None]:
-        del query, answer, chunks
-        return False, [], "llm", "test-v1"
-
 
 @pytest.fixture
 def e2e_settings(tmp_path: Path) -> Settings:
@@ -206,7 +196,7 @@ def test_e2e_pipeline_query_uses_retrieved_chunks_and_citations(e2e_settings: Se
     assert len(fetched_ids) > 0
 
 
-def test_e2e_pipeline_marks_ambiguous_top_sources_as_safe_fail(e2e_settings: Settings) -> None:
+def test_e2e_pipeline_mixed_top_sources_remains_answerable(e2e_settings: Settings) -> None:
     vector_db = VectorDbManager(e2e_settings)
     upload_service = UploadService(settings=e2e_settings, vector_db=vector_db)
     tools = AgentTools(vector_db)
@@ -234,10 +224,9 @@ def test_e2e_pipeline_marks_ambiguous_top_sources_as_safe_fail(e2e_settings: Set
     trace = trace_store.get(response.trace_id)
 
     assert trace is not None
-    assert response.safe_fail is True
-    assert response.citations == []
+    assert response.safe_fail is False
+    assert len(response.citations) > 0
 
     validate_events = [event for event in trace.events if event.stage == "validate"]
     assert len(validate_events) == 1
-    reason = str(validate_events[0].payload.get("reason", "")).lower()
-    assert "ambiguous" in reason
+    assert validate_events[0].payload.get("status") == "pass"

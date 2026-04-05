@@ -6,7 +6,6 @@ from typing import TypeVar
 from src.core.config import Settings
 from src.core.models import (
     AnswerSynthesisOutput,
-    CoverageCheckOutput,
     EvidenceChunk,
     GroundingCheckOutput,
     GroundingResult,
@@ -15,7 +14,6 @@ from src.core.models import (
 from src.core.prompts import (
     answer_prompt,
     conversation_summary_prompt,
-    coverage_check_prompt,
     grounding_prompt,
     query_analysis_prompt,
 )
@@ -59,7 +57,9 @@ class QueryReasoner:
             raise LLMInvocationError("Reasoning is disabled but analyze_query was invoked.")
 
         prompt = query_analysis_prompt(query=query, conversation_summary=conversation_summary)
-        output = self._invoke_structured(prompt, QueryAnalysisOutput)
+        parsed = self._invoke_structured_raw(prompt)
+        parsed = self._normalize_query_analysis_payload(parsed)
+        output = QueryAnalysisOutput.model_validate(parsed)
 
         if output.is_clear:
             rewritten = (output.rewritten_query or query).strip()
@@ -67,8 +67,10 @@ class QueryReasoner:
                 rewritten,
                 operation="analyze_query",
             )
+            output.questions = [output.rewritten_query]
             output.clarification_needed = None
         else:
+            output.questions = []
             output.rewritten_query = None
             output.clarification_needed = (
                 output.clarification_needed.strip()
@@ -77,6 +79,42 @@ class QueryReasoner:
             )
 
         return output, "llm"
+
+    @staticmethod
+    def _normalize_query_analysis_payload(payload: dict[str, object]) -> dict[str, object]:
+        normalized = dict(payload)
+
+        raw_is_clear = normalized.get("is_clear")
+        if isinstance(raw_is_clear, str):
+            lowered = raw_is_clear.strip().lower()
+            if lowered in {"true", "yes", "1"}:
+                normalized["is_clear"] = True
+            elif lowered in {"false", "no", "0"}:
+                normalized["is_clear"] = False
+
+        raw_questions = normalized.get("questions")
+        if isinstance(raw_questions, str):
+            normalized["questions"] = [raw_questions]
+        elif not isinstance(raw_questions, list):
+            normalized["questions"] = []
+
+        cleaned_questions: list[str] = []
+        for item in normalized.get("questions", []):
+            if isinstance(item, str) and item.strip():
+                cleaned_questions.append(item.strip())
+        normalized["questions"] = cleaned_questions
+
+        raw_clarification = normalized.get("clarification_needed")
+        if isinstance(raw_clarification, bool):
+            normalized["clarification_needed"] = None
+        elif raw_clarification is not None and not isinstance(raw_clarification, str):
+            normalized["clarification_needed"] = str(raw_clarification)
+
+        raw_rewritten = normalized.get("rewritten_query")
+        if raw_rewritten is not None and not isinstance(raw_rewritten, str):
+            normalized["rewritten_query"] = str(raw_rewritten)
+
+        return normalized
 
     def assess_grounding(
         self,
@@ -113,8 +151,9 @@ class QueryReasoner:
         if not self._settings.reasoning_enabled:
             raise LLMInvocationError("Reasoning is disabled but synthesize_answer was invoked.")
 
+        selected_chunks = self._select_chunks_for_synthesis(chunks)
         evidence_block = "\n".join(
-            f"- [{chunk.chunk_id}] ({chunk.source}) {chunk.text[:300]}" for chunk in chunks[:4]
+            f"- [{chunk.chunk_id}] ({chunk.source}) {chunk.text[:300]}" for chunk in selected_chunks
         )
         if not evidence_block:
             evidence_block = "- No evidence snippets available."
@@ -137,29 +176,41 @@ class QueryReasoner:
 
         return answer, citation_chunk_ids, "llm", output.prompt_version
 
-    def detect_insufficient_coverage(
-        self,
-        *,
-        query: str,
-        answer: str,
-        chunks: list[EvidenceChunk],
-    ) -> tuple[bool, list[str], str, str | None]:
-        if not self._settings.reasoning_enabled:
-            raise LLMInvocationError(
-                "Reasoning is disabled but detect_insufficient_coverage was invoked."
-            )
+    @staticmethod
+    def _select_chunks_for_synthesis(chunks: list[EvidenceChunk]) -> list[EvidenceChunk]:
+        if not chunks:
+            return []
 
-        evidence_block = "\n".join(
-            f"- [{chunk.chunk_id}] ({chunk.source}) {chunk.text[:300]}" for chunk in chunks[:4]
-        )
-        if not evidence_block:
-            evidence_block = "- No evidence snippets available."
+        # Prefer cross-source coverage before adding extra chunks from the same source.
+        selected: list[EvidenceChunk] = []
+        seen_ids: set[str] = set()
+        source_counts: dict[str, int] = {}
+        max_chunks = 8
+        max_per_source = 2
 
-        prompt = coverage_check_prompt(query=query, answer=answer, evidence=evidence_block)
+        for chunk in chunks:
+            if len(selected) >= max_chunks:
+                break
+            if chunk.chunk_id in seen_ids:
+                continue
+            if source_counts.get(chunk.source, 0) > 0:
+                continue
+            selected.append(chunk)
+            seen_ids.add(chunk.chunk_id)
+            source_counts[chunk.source] = 1
 
-        output = self._invoke_structured(prompt, CoverageCheckOutput)
-        missing_terms = [term.strip().lower() for term in output.missing_terms if term.strip()]
-        return output.unsupported, missing_terms, "llm", output.prompt_version
+        for chunk in chunks:
+            if len(selected) >= max_chunks:
+                break
+            if chunk.chunk_id in seen_ids:
+                continue
+            if source_counts.get(chunk.source, 0) >= max_per_source:
+                continue
+            selected.append(chunk)
+            seen_ids.add(chunk.chunk_id)
+            source_counts[chunk.source] = source_counts.get(chunk.source, 0) + 1
+
+        return selected
 
     def _invoke_structured(self, prompt: str, model_type: type[SchemaModelT]) -> SchemaModelT:
         parsed = self._invoke_structured_raw(prompt)
@@ -167,7 +218,19 @@ class QueryReasoner:
 
     def _invoke_structured_raw(self, prompt: str) -> dict[str, object]:
         llm_text = self._llm_client.invoke_text(prompt)
-        return self._parse_json_payload(llm_text)
+        try:
+            return self._parse_json_payload(llm_text)
+        except Exception as first_exc:
+            repair_prompt = (
+                f"{prompt}\n\n"
+                "Your previous output was not valid JSON. "
+                "Return only a single JSON object with no prose, no markdown, and no code fences."
+            )
+            repaired_text = self._llm_client.invoke_text(repair_prompt)
+            try:
+                return self._parse_json_payload(repaired_text)
+            except Exception as second_exc:
+                raise LLMInvocationError(str(second_exc)) from first_exc
 
     @staticmethod
     def _normalize_rewritten_query(raw_query: str, *, operation: str) -> str:

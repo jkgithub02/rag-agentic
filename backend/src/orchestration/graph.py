@@ -24,6 +24,9 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
     graph.add_node("summarize_history", nodes.summarize_history)
     graph.add_node("rewrite_query", nodes.rewrite_query)
     graph.add_node("retrieve", nodes.retrieve)
+    graph.add_node("should_compress_context", nodes.should_compress_context)
+    graph.add_node("compress_context", nodes.compress_context)
+    graph.add_node("fallback_response", nodes.fallback_response)
     graph.add_node("validate", nodes.validate)
     graph.add_node("clarify", nodes.clarify)
     graph.add_node("generate", nodes.generate)
@@ -37,13 +40,20 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
         edges.route_after_rewrite,
         {"clarify": "clarify", "retrieve": "retrieve"},
     )
-    graph.add_edge("clarify", "finish")
-    graph.add_edge("retrieve", "validate")
+    graph.add_edge("clarify", "rewrite_query")
+    graph.add_edge("retrieve", "should_compress_context")
     graph.add_conditional_edges(
-        "validate",
-        edges.route_after_validate,
-        {"generate": "generate"},
+        "should_compress_context",
+        edges.route_after_should_compress,
+        {
+            "compress_context": "compress_context",
+            "validate": "validate",
+            "fallback_response": "fallback_response",
+        },
     )
+    graph.add_edge("compress_context", "validate")
+    graph.add_edge("fallback_response", "finish")
+    graph.add_edge("validate", "generate")
     graph.add_edge("generate", "verify")
     graph.add_edge("verify", "finish")
     graph.add_edge("finish", END)
@@ -59,4 +69,7 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
             TraceEvent,
         )
     )
-    return graph.compile(checkpointer=InMemorySaver(serde=serializer))
+    return graph.compile(
+        checkpointer=InMemorySaver(serde=serializer),
+        interrupt_before=["clarify"],
+    )

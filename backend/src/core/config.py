@@ -40,9 +40,14 @@ class Settings(BaseSettings):
     chunk_size: int = 1200
     chunk_overlap: int = 150
     retrieval_top_k: int = 4
+    retrieval_neighbor_span: int = 1
+    context_compression_base_threshold: int = 2000
+    context_compression_growth_factor: float = 0.9
+    agent_max_iterations: int = 10
+    agent_max_tool_calls: int = 8
 
     min_relevance_score: float = 0.12
-    ambiguity_margin: float = 0.04
+    ambiguity_margin: float = 0.005
 
     safe_fail_message: str = (
         "I do not have sufficient evidence in the indexed documents to answer this confidently."
