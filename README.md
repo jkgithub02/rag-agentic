@@ -39,17 +39,69 @@ For local Qdrant stability, prefer single-process mode during demos:
 uv run uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Run Streamlit UI:
-
-```bash
-uv run streamlit run ui/app.py
-```
-
 Run tests:
 
 ```bash
 uv run pytest
 ```
+
+## RAGAS Comprehensive Evaluation
+
+The system includes a comprehensive RAGAS evaluation suite with 30 questions across 7 categories:
+
+1. **Straightforward Factual** — Baseline questions that must always pass
+2. **Precise Attribution** — Single-source citation accuracy verification
+3. **Cross-Document Reasoning** — Multi-source attribution and disambiguation
+4. **Inference Not Just Retrieval** — Faithfulness and synthesis quality
+5. **Safe-Fail / Unanswerable** — System refusal to hallucinate
+6. **Ambiguous Query Rewrite** — Orchestration reasoning visibility (traces)
+7. **Semantic/Lexical Mismatch** — Hybrid retrieval validation
+
+### Run Evaluation (CLI)
+
+With the API running locally:
+
+```bash
+cd backend
+uv run python scripts/evaluate.py --api-url http://localhost:8000 --output-dir reports
+```
+
+This will:
+- Run all 30 questions
+- Generate `reports/ragas_comprehensive_report.json` (with embedded traces)
+- Generate `reports/RAGAS_EVALUATION.md` (markdown summary)
+- Generate `reports/ragas_question_bank.json` (exact test bank used)
+
+### Run Evaluation (pytest)
+
+For CI/automated testing:
+
+```bash
+cd backend
+uv run pytest tests/test_ragas_comprehensive.py -v
+```
+
+Or run specific category:
+
+```bash
+uv run pytest tests/test_ragas_comprehensive.py --collect-only
+RUN_RAGAS_EVAL=1 uv run pytest tests/test_ragas_comprehensive.py::test_ragas_comprehensive_live_run -v
+```
+
+### Report Artifacts
+
+Reports are saved to `backend/reports/`:
+
+- `ragas_comprehensive_report.json` — Structured results with all metrics and embedded traces
+- `RAGAS_EVALUATION.md` — Human-readable summary with category breakdown
+- `ragas_question_bank.json` — Export of all 30 questions and expected assertions
+
+Each question result includes:
+- Query text and category
+- System response (answer + citations)
+- RAGAS metrics: faithfulness, context_recall, answer_relevancy
+- Expected sources vs actual citations (pass/fail/warning)
+- Full trace object (original query, rewritten query, events, citations)
 
 ## Phase Quality Gates
 

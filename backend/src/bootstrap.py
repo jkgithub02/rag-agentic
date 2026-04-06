@@ -30,7 +30,7 @@ def get_vector_db() -> VectorDbManager:
                 "Vector database path is locked by another running process. "
                 f"Path: {settings.vector_db_path}. "
                 "On Windows, local Qdrant path mode is single-process. "
-                "Stop other backend/Streamlit Python processes and retry."
+                "Stop other backend Python processes and retry."
             ) from exc
         raise
 

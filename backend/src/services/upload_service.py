@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 from uuid import uuid4
 
@@ -162,4 +163,7 @@ class UploadService:
     def _atomic_write(target: Path, content: bytes) -> None:
         temp_target = target.with_name(f".{target.name}.{uuid4().hex}.uploadtmp")
         temp_target.write_bytes(content)
-        temp_target.replace(target)
+        
+        # Use shutil.move() for better Windows file lock handling
+        # shutil.move() can handle file replacements on Windows better than pathlib.replace()
+        shutil.move(str(temp_target), str(target))
