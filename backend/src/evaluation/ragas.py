@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from langchain_ollama import ChatOllama, OllamaEmbeddings
 from ragas import EvaluationDataset, evaluate
 from ragas.dataset_schema import SingleTurnSample
 from ragas.embeddings import LangchainEmbeddingsWrapper
@@ -17,6 +16,7 @@ from ragas.metrics import answer_relevancy, context_recall, faithfulness
 TRANSFORMER_PDF = "Attention is all you need.pdf"
 BERT_PDF = "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
 RAG_PDF = "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+FACTUAL_METRIC_COLUMNS = ("faithfulness", "answer_relevancy", "context_recall")
 
 
 @dataclass(frozen=True)
@@ -292,6 +292,29 @@ def _extract_retrieved_contexts(trace: dict[str, Any]) -> list[str]:
     return contexts
 
 
+def _extract_retrieved_chunks(trace: dict[str, Any]) -> list[dict[str, object]]:
+    chunks: list[dict[str, object]] = []
+    for event in trace.get("events", []):
+        if event.get("stage") != "retrieve":
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        hits = payload.get("hits")
+        if not isinstance(hits, list):
+            continue
+        for hit in hits:
+            if not isinstance(hit, dict):
+                continue
+            chunk_id = hit.get("chunk_id")
+            source = hit.get("source")
+            score = hit.get("score")
+            if isinstance(chunk_id, str) and isinstance(source, str):
+                score_value = float(score) if isinstance(score, (int, float)) else 0.0
+                chunks.append({"chunk_id": chunk_id, "source": source, "score": score_value})
+    return chunks
+
+
 def _source_pass(case: RagasQuestion, actual_sources: list[str]) -> bool | None:
     if not case.expected_sources:
         return None
@@ -311,30 +334,125 @@ def _rewrite_detected(query: str, trace: dict[str, Any]) -> bool:
     return " ".join(original.split()).lower() != " ".join(rewritten.split()).lower()
 
 
+def _rewritten_query_or_input(query: str, trace: dict[str, Any]) -> str:
+    rewritten = trace.get("rewritten_query")
+    if isinstance(rewritten, str) and rewritten.strip():
+        return rewritten.strip()
+    return query
+
+
+def _is_metric_eligible(*, case: RagasQuestion, contexts: list[str]) -> bool:
+    if case.expect_safe_fail or case.expect_rewrite:
+        return False
+    if not isinstance(case.reference, str) or not case.reference.strip():
+        return False
+    return bool(contexts)
+
+
+def _safe_fail_heuristic(answer: str) -> bool:
+    text = answer.lower()
+    refusal_markers = (
+        "do not have sufficient evidence",
+        "cannot answer",
+        "can't answer",
+        "no evidence found",
+        "not enough information",
+        "no information",
+        "not available",
+        "not found",
+    )
+    evidence_scope_markers = (
+        "evidence",
+        "documents",
+        "provided",
+        "indexed",
+        "available",
+    )
+    has_refusal = any(marker in text for marker in refusal_markers)
+    has_scope = any(marker in text for marker in evidence_scope_markers)
+    return has_refusal and has_scope
+
+
+def _metric_summary(
+    *, ragas_rows: list[dict[str, object]]
+) -> tuple[dict[str, float | None], dict[str, int], dict[str, int], float | None]:
+    mean_scores: dict[str, float | None] = {}
+    valid_counts: dict[str, int] = {}
+    excluded_counts: dict[str, int] = {}
+
+    for column in FACTUAL_METRIC_COLUMNS:
+        values: list[float] = []
+        excluded = 0
+        for row in ragas_rows:
+            value = row.get(column)
+            if isinstance(value, (int, float)) and value == value:
+                values.append(float(value))
+            else:
+                excluded += 1
+
+        valid_counts[column] = len(values)
+        excluded_counts[column] = excluded
+        mean_scores[column] = (sum(values) / len(values)) if values else None
+
+    available = [score for score in mean_scores.values() if isinstance(score, float)]
+    overall = (sum(available) / len(available)) if available else None
+    return mean_scores, valid_counts, excluded_counts, overall
+
+
 def _build_evaluator_models(
-    base_url: str, embedding_model: str
+    *,
+    aws_region: str,
+    bedrock_chat_model_id: str,
+    ollama_base_url: str,
+    ollama_embedding_model: str,
 ) -> tuple[LangchainLLMWrapper, LangchainEmbeddingsWrapper]:
-    chat = ChatOllama(model="llama3.1", base_url=base_url, temperature=0)
-    embeddings = OllamaEmbeddings(model=embedding_model, base_url=base_url)
+    from langchain_aws import ChatBedrock
+    from langchain_ollama import OllamaEmbeddings
+
+    chat = ChatBedrock(
+        region_name=aws_region,
+        model_id=bedrock_chat_model_id,
+        model_kwargs={"temperature": 0},
+    )
+    embeddings = OllamaEmbeddings(
+        model=ollama_embedding_model,
+        base_url=ollama_base_url,
+    )
     return LangchainLLMWrapper(chat), LangchainEmbeddingsWrapper(embeddings)
 
 
-def run_comprehensive_evaluation(
+def run_ragas_evaluation(
     *,
     api_url: str,
     output_path: Path,
     ollama_base_url: str,
     ollama_embedding_model: str,
+    aws_region: str = "ap-southeast-5",
+    bedrock_chat_model_id: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
     request_timeout_seconds: float = 120.0,
 ) -> dict[str, Any]:
     """Run the 7-category evaluation against a live API and persist JSON report."""
 
     questions = build_question_bank()
+    category_counts: dict[str, int] = {}
+    for question in questions:
+        category_counts[question.category] = category_counts.get(question.category, 0) + 1
+
     rows: list[dict[str, Any]] = []
     ragas_samples: list[SingleTurnSample] = []
+    ragas_row_indexes: list[int] = []
+    current_category: str | None = None
 
     with httpx.Client(timeout=request_timeout_seconds) as client:
         for case in questions:
+            if case.category != current_category:
+                current_category = case.category
+                print(
+                    f"Starting Category {current_category} "
+                    f"({category_counts.get(current_category, 0)} questions)..."
+                )
+
+            print(f"Answering Question {case.id}...")
             thread_id = f"ragas-{case.id.lower()}"
             ask_response = client.post(
                 f"{api_url.rstrip('/')}/ask",
@@ -356,80 +474,115 @@ def run_comprehensive_evaluation(
             if not isinstance(answer, str):
                 answer = ""
 
-            safe_fail = bool(payload.get("safe_fail", False))
+            safe_fail_flag = bool(payload.get("safe_fail", False))
+            safe_fail_from_text = _safe_fail_heuristic(answer)
+            safe_fail_pass = safe_fail_flag or safe_fail_from_text
+
             actual_sources = _extract_sources(citations)
             source_pass = _source_pass(case, actual_sources)
             rewrite_detected = _rewrite_detected(case.query, trace)
             contexts = _extract_retrieved_contexts(trace)
+            retrieved_chunks = _extract_retrieved_chunks(trace)
+            rewritten_query = _rewritten_query_or_input(case.query, trace)
+            metric_eligible = _is_metric_eligible(case=case, contexts=contexts)
 
-            rows.append(
-                {
-                    "id": case.id,
-                    "category": case.category,
-                    "query": case.query,
-                    "reference": case.reference,
-                    "expected_sources": list(case.expected_sources),
-                    "actual_sources": actual_sources,
-                    "source_assertion_pass": source_pass,
-                    "expect_safe_fail": case.expect_safe_fail,
-                    "safe_fail": safe_fail,
-                    "safe_fail_assertion_pass": (
-                        None if not case.expect_safe_fail else safe_fail
-                    ),
-                    "expect_rewrite": case.expect_rewrite,
-                    "rewrite_detected": rewrite_detected,
-                    "rewrite_assertion_pass": (
-                        None if not case.expect_rewrite else rewrite_detected
-                    ),
-                    "answer": answer,
-                    "citations": citations,
-                    "trace": trace,
-                    "retrieved_contexts": contexts,
-                }
+            row: dict[str, Any] = {
+                "id": case.id,
+                "category": case.category,
+                "input": case.query,
+                "rewritten_query": rewritten_query,
+                "generated_output": answer,
+                "chunks_retrieved_count": len(retrieved_chunks),
+                "chunks_retrieved": retrieved_chunks[:5],
+                "source_assertion_pass": source_pass,
+                "safe_fail_assertion_pass": (None if not case.expect_safe_fail else safe_fail_pass),
+                "safe_fail_flag": (None if not case.expect_safe_fail else safe_fail_flag),
+                "safe_fail_heuristic": (None if not case.expect_safe_fail else safe_fail_from_text),
+                "rewrite_assertion_pass": (None if not case.expect_rewrite else rewrite_detected),
+                "metrics": {},
+                "overall_score": None,
+            }
+            rows.append(row)
+
+            print(
+                f"Completed {case.id}: retrieved={len(retrieved_chunks)}, "
+                f"metric_eligible={metric_eligible}, "
+                f"safe_fail_pass={row['safe_fail_assertion_pass']}"
             )
 
-            ragas_samples.append(
-                SingleTurnSample(
-                    user_input=case.query,
-                    response=answer,
-                    reference=case.reference,
-                    retrieved_contexts=contexts,
+            if metric_eligible:
+                ragas_samples.append(
+                    SingleTurnSample(
+                        user_input=case.query,
+                        response=answer,
+                        reference=case.reference,
+                        retrieved_contexts=contexts,
+                    )
                 )
+                ragas_row_indexes.append(len(rows) - 1)
+
+    ragas_rows: list[dict[str, object]] = []
+    if ragas_samples:
+        print(f"Running RAGAS metrics on {len(ragas_samples)} factual samples...")
+        dataset = EvaluationDataset(samples=ragas_samples)
+        evaluator_llm, evaluator_embeddings = _build_evaluator_models(
+            aws_region=aws_region,
+            bedrock_chat_model_id=bedrock_chat_model_id,
+            ollama_base_url=ollama_base_url,
+            ollama_embedding_model=ollama_embedding_model,
+        )
+
+        metrics = [faithfulness, answer_relevancy, context_recall]
+        ragas_result = evaluate(
+            dataset=dataset,
+            metrics=metrics,
+            llm=evaluator_llm,
+            embeddings=evaluator_embeddings,
+            show_progress=True,
+            raise_exceptions=False,
+        )
+        ragas_rows = ragas_result.to_pandas().to_dict(orient="records")
+
+        for result_index, ragas_row in enumerate(ragas_rows):
+            row_index = ragas_row_indexes[result_index]
+            metric_payload: dict[str, float | None] = {}
+            score_values: list[float] = []
+            for metric_name in FACTUAL_METRIC_COLUMNS:
+                value = ragas_row.get(metric_name)
+                if isinstance(value, (int, float)) and value == value:
+                    value_float = float(value)
+                    metric_payload[metric_name] = value_float
+                    score_values.append(value_float)
+                else:
+                    metric_payload[metric_name] = None
+            rows[row_index]["metrics"] = metric_payload
+            rows[row_index]["overall_score"] = (
+                sum(score_values) / len(score_values) if score_values else None
             )
 
-    dataset = EvaluationDataset(samples=ragas_samples)
-    evaluator_llm, evaluator_embeddings = _build_evaluator_models(
-        base_url=ollama_base_url,
-        embedding_model=ollama_embedding_model,
+    mean_scores, valid_counts, excluded_counts, overall_score = _metric_summary(
+        ragas_rows=ragas_rows
     )
-
-    metrics = [faithfulness, answer_relevancy, context_recall]
-    ragas_result = evaluate(
-        dataset=dataset,
-        metrics=metrics,
-        llm=evaluator_llm,
-        embeddings=evaluator_embeddings,
-        show_progress=True,
-        raise_exceptions=False,
-    )
-    ragas_rows = ragas_result.to_pandas().to_dict(orient="records")
-    mean_scores = ragas_result._repr_dict  # noqa: SLF001 - best available stable export in ragas 0.4
-
-    for index, ragas_row in enumerate(ragas_rows):
-        rows[index]["ragas"] = ragas_row
+    factual_count = len(ragas_samples)
 
     report = {
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "api_url": api_url,
         "question_count": len(questions),
-        "metrics": ["faithfulness", "answer_relevancy", "context_recall"],
+        "factual_question_count": factual_count,
+        "behavioral_question_count": len(questions) - factual_count,
+        "metrics": list(FACTUAL_METRIC_COLUMNS),
         "mean_scores": mean_scores,
+        "valid_counts": valid_counts,
+        "excluded_counts": excluded_counts,
+        "overall_score": overall_score,
         "rows": rows,
         "categories": _category_summary(rows),
     }
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, ensure_ascii=True, indent=2), encoding="utf-8")
+    print(f"RAGAS evaluation report written: {output_path}")
     return report
 
 
@@ -443,17 +596,17 @@ def _category_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         source_checks = [
             item["source_assertion_pass"]
             for item in items
-            if item["source_assertion_pass"] is not None
+            if item.get("source_assertion_pass") is not None
         ]
         safe_fail_checks = [
             item["safe_fail_assertion_pass"]
             for item in items
-            if item["safe_fail_assertion_pass"] is not None
+            if item.get("safe_fail_assertion_pass") is not None
         ]
         rewrite_checks = [
             item["rewrite_assertion_pass"]
             for item in items
-            if item["rewrite_assertion_pass"] is not None
+            if item.get("rewrite_assertion_pass") is not None
         ]
 
         summary.append(
@@ -475,6 +628,9 @@ def _category_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     if not rewrite_checks
                     else sum(1 for value in rewrite_checks if value) / len(rewrite_checks)
                 ),
+                "source_checks_count": len(source_checks),
+                "safe_fail_checks_count": len(safe_fail_checks),
+                "rewrite_checks_count": len(rewrite_checks),
             }
         )
     return summary

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 
 import pytest
-from botocore.exceptions import ClientError
 
 from src.core.config import Settings
 from src.services.llm_client import BedrockChatClient, LLMInvocationError
@@ -17,26 +16,23 @@ class _Body:
         return json.dumps(self._payload)
 
 
-class _FlakyClient:
-    def __init__(self) -> None:
+class _FlakyChatBedrock:
+    def __init__(self, *_: object, **__: object) -> None:
         self.calls = 0
 
-    def invoke_model(self, **_: object) -> dict:
+    def invoke(self, *_: object, **__: object) -> object:
         self.calls += 1
         if self.calls == 1:
-            raise ClientError(
-                error_response={"Error": {"Code": "ThrottlingException", "Message": "retry"}},
-                operation_name="InvokeModel",
-            )
-        return {"body": _Body({"content": [{"type": "text", "text": "ok"}]})}
+            raise RuntimeError("retry")
+        return type("_Message", (), {"content": "ok"})()
 
 
-class _FailingClient:
-    def invoke_model(self, **_: object) -> dict:
-        raise ClientError(
-            error_response={"Error": {"Code": "ServiceUnavailable", "Message": "down"}},
-            operation_name="InvokeModel",
-        )
+class _FailingChatBedrock:
+    def __init__(self, *_: object, **__: object) -> None:
+        pass
+
+    def invoke(self, *_: object, **__: object) -> object:
+        raise RuntimeError("down")
 
 
 def _settings() -> Settings:
@@ -44,8 +40,8 @@ def _settings() -> Settings:
 
 
 def test_invoke_text_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = _FlakyClient()
-    monkeypatch.setattr("src.services.llm_client.boto3.client", lambda *args, **kwargs: client)
+    client = _FlakyChatBedrock()
+    monkeypatch.setattr("src.services.llm_client.ChatBedrock", lambda *args, **kwargs: client)
 
     bedrock = BedrockChatClient(_settings())
     text = bedrock.invoke_text("hello")
@@ -56,8 +52,8 @@ def test_invoke_text_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_invoke_text_raises_after_retry_exhaustion(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "src.services.llm_client.boto3.client",
-        lambda *args, **kwargs: _FailingClient(),
+        "src.services.llm_client.ChatBedrock",
+        lambda *args, **kwargs: _FailingChatBedrock(),
     )
 
     bedrock = BedrockChatClient(_settings())

@@ -24,6 +24,7 @@ dependencies = [
     { name = "botocore", extra = ["crt"] },
     { name = "fastapi" },
     { name = "langchain" },
+    { name = "langchain-aws" },
     { name = "langchain-ollama" },
     { name = "langgraph" },
     { name = "pydantic-settings" },
@@ -48,6 +49,7 @@ requires-dist = [
     { name = "botocore", extras = ["crt"], specifier = ">=1.42.82" },
     { name = "fastapi", specifier = ">=0.135.3" },
     { name = "langchain", specifier = ">=1.2.14" },
+    { name = "langchain-aws", specifier = ">=0.2.22" },
     { name = "langchain-ollama", specifier = ">=0.3.10" },
     { name = "langgraph", specifier = ">=1.1.5" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
@@ -1083,6 +1085,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/af/2b/0ca77ee988a9f1c1f1d923115d7c91221ab434067bc36f2f637201aeee81/langchain-1.2.14.tar.gz", hash = "sha256:fc5511e8f8af7efee9e5a144da4392d700d627b301d240470db97272940ad317", size = 574190 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4c/87/324ae5fd9993f024339a452fc89e3fd808bccde87ef95c8dafab3de023c0/langchain-1.2.14-py3-none-any.whl", hash = "sha256:96da6d7338d5a6fc41eb4ec0db83f7ef5d03bb5efd17bb269f34ba4378ebdb4d", size = 112715 },
+]
+
+[[package]]
+name = "langchain-aws"
+version = "1.4.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boto3" },
+    { name = "langchain-core" },
+    { name = "numpy" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/43/35/ab73bac142c0299ef3458b0cb1caa8953224b38ec11841a448fb21750324/langchain_aws-1.4.4.tar.gz", hash = "sha256:d7276c63cd14439ac846d1375d707f3e8013d693982ed1d277bd6a7958550106", size = 511072 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/66/c3/ea5b80391a51190d1081cfee717d8382393367f24ee16d466fb72d7fdbc8/langchain_aws-1.4.4-py3-none-any.whl", hash = "sha256:b578244523c230413d9664ac1345b64cdbf0de39c1db632e43dabfdf3f4e1ee9", size = 200504 },
 ]
 
 [[package]]

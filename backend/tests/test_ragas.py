@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.evaluation.ragas_comprehensive import build_question_bank, run_comprehensive_evaluation
+from src.evaluation.ragas import build_question_bank, run_ragas_evaluation
 
 
 def test_question_bank_covers_all_requested_categories() -> None:
@@ -34,13 +34,13 @@ def test_question_bank_queries_are_unique() -> None:
 
 
 @pytest.mark.integration
-def test_ragas_comprehensive_live_run() -> None:
+def test_ragas_live_run() -> None:
     backend_root = Path(__file__).resolve().parents[1]
     reports_dir = backend_root / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
-    output_path = reports_dir / "ragas_comprehensive_report.json"
+    output_path = reports_dir / "ragas_report.json"
 
-    report = run_comprehensive_evaluation(
+    report = run_ragas_evaluation(
         api_url=os.environ.get("RAGAS_API_URL", "http://127.0.0.1:8000"),
         output_path=output_path,
         ollama_base_url=os.environ.get("RAGAS_OLLAMA_BASE_URL", "http://localhost:11434"),

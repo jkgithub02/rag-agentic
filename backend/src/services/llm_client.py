@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 import time
+from typing import Any
 
-import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+from langchain_aws import ChatBedrock
 
 from src.core.config import Settings
 
@@ -18,21 +18,28 @@ class BedrockChatClient:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+        self._client = ChatBedrock(
+            region_name=settings.aws_region,
+            model_id=settings.bedrock_chat_model_id,
+            model_kwargs={"temperature": settings.reasoning_temperature},
+        )
+
+    @staticmethod
+    def _message_text(message: Any) -> str:
+        content = getattr(message, "content", "")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text = block.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+            return "\n".join(parts).strip()
+        return str(content)
 
     def invoke_text(self, prompt: str) -> str:
-        payload = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "temperature": self._settings.reasoning_temperature,
-            "max_tokens": self._settings.reasoning_max_tokens,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": prompt}],
-                }
-            ],
-        }
-
         attempts = max(1, self._settings.reasoning_retry_attempts)
         backoff = max(0.0, self._settings.reasoning_retry_backoff_seconds)
         last_exc: Exception | None = None
@@ -40,14 +47,9 @@ class BedrockChatClient:
 
         for attempt in range(1, attempts + 1):
             try:
-                response = self._client.invoke_model(
-                    modelId=self._settings.bedrock_chat_model_id,
-                    contentType="application/json",
-                    accept="application/json",
-                    body=json.dumps(payload).encode("utf-8"),
-                )
+                response = self._client.invoke(prompt)
                 break
-            except (ClientError, BotoCoreError) as exc:
+            except (ClientError, BotoCoreError, Exception) as exc:
                 last_exc = exc
                 if attempt == attempts:
                     break
@@ -59,23 +61,8 @@ class BedrockChatClient:
                 raise LLMInvocationError(str(last_exc)) from last_exc
             raise LLMInvocationError("Bedrock invocation failed without exception detail.")
 
-        raw = response.get("body")
-        if raw is None:
-            raise LLMInvocationError("Missing response body from Bedrock invocation.")
-
-        decoded = json.loads(raw.read())
-        content = decoded.get("content", [])
-        if not isinstance(content, list):
-            raise LLMInvocationError("Unexpected Bedrock response format.")
-
-        text_parts: list[str] = []
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                text = block.get("text")
-                if isinstance(text, str):
-                    text_parts.append(text)
-
-        if not text_parts:
+        text = self._message_text(response)
+        if not text:
             raise LLMInvocationError("No text content returned by Bedrock model.")
 
-        return "\n".join(text_parts).strip()
+        return text.strip()
