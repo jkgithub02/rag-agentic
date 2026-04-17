@@ -175,5 +175,7 @@ def test_synthesize_answer_uses_source_diverse_evidence_selection() -> None:
     assert citation_ids == ["rag-0001"]
     assert len(llm.prompts) >= 1
     synthesis_prompt = llm.prompts[-1]
+    assert "1-3 concise sentences" in synthesis_prompt
+    assert "cite every source" in synthesis_prompt
     assert "[rag-0001]" in synthesis_prompt
     assert "[bert-0001]" in synthesis_prompt

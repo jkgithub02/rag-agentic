@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     stream_token_delay_seconds: float = 0.015
     embedding_provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_embedding_model: str = "nomic-embed-text"
+    ollama_embedding_model: str = "mxbai-embed-large"
 
     _backend_root: Path = Path(__file__).resolve().parents[2]
 
@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     agent_max_iterations: int = 10
     agent_max_tool_calls: int = 8
 
-    min_relevance_score: float = 0.12
+    min_relevance_score: float = 0.07
     ambiguity_margin: float = 0.005
 
     safe_fail_message: str = (

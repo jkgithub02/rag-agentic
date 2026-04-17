@@ -349,28 +349,7 @@ def _is_metric_eligible(*, case: RagasQuestion, contexts: list[str]) -> bool:
     return bool(contexts)
 
 
-def _safe_fail_heuristic(answer: str) -> bool:
-    text = answer.lower()
-    refusal_markers = (
-        "do not have sufficient evidence",
-        "cannot answer",
-        "can't answer",
-        "no evidence found",
-        "not enough information",
-        "no information",
-        "not available",
-        "not found",
-    )
-    evidence_scope_markers = (
-        "evidence",
-        "documents",
-        "provided",
-        "indexed",
-        "available",
-    )
-    has_refusal = any(marker in text for marker in refusal_markers)
-    has_scope = any(marker in text for marker in evidence_scope_markers)
-    return has_refusal and has_scope
+
 
 
 def _metric_summary(
@@ -474,9 +453,7 @@ def run_ragas_evaluation(
             if not isinstance(answer, str):
                 answer = ""
 
-            safe_fail_flag = bool(payload.get("safe_fail", False))
-            safe_fail_from_text = _safe_fail_heuristic(answer)
-            safe_fail_pass = safe_fail_flag or safe_fail_from_text
+            safe_fail_pass = bool(payload.get("safe_fail", False))
 
             actual_sources = _extract_sources(citations)
             source_pass = _source_pass(case, actual_sources)
@@ -496,8 +473,6 @@ def run_ragas_evaluation(
                 "chunks_retrieved": retrieved_chunks[:5],
                 "source_assertion_pass": source_pass,
                 "safe_fail_assertion_pass": (None if not case.expect_safe_fail else safe_fail_pass),
-                "safe_fail_flag": (None if not case.expect_safe_fail else safe_fail_flag),
-                "safe_fail_heuristic": (None if not case.expect_safe_fail else safe_fail_from_text),
                 "rewrite_assertion_pass": (None if not case.expect_rewrite else rewrite_detected),
                 "metrics": {},
                 "overall_score": None,
@@ -533,6 +508,11 @@ def run_ragas_evaluation(
         )
 
         metrics = [faithfulness, answer_relevancy, context_recall]
+        # Set the evaluator LLM and embeddings on the metric instances
+        for metric in metrics:
+            metric.llm = evaluator_llm
+            if hasattr(metric, "embeddings"):
+                metric.embeddings = evaluator_embeddings
         ragas_result = evaluate(
             dataset=dataset,
             metrics=metrics,
@@ -587,6 +567,7 @@ def run_ragas_evaluation(
 
 
 def _category_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compute comprehensive scoring for each category including RAGAS metrics."""
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         grouped.setdefault(str(row["category"]), []).append(row)
@@ -609,28 +590,85 @@ def _category_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if item.get("rewrite_assertion_pass") is not None
         ]
 
+        # Compute pass rates
+        source_pass_rate = (
+            None
+            if not source_checks
+            else sum(1 for value in source_checks if value) / len(source_checks)
+        )
+        safe_fail_pass_rate = (
+            None
+            if not safe_fail_checks
+            else sum(1 for value in safe_fail_checks if value) / len(safe_fail_checks)
+        )
+        rewrite_pass_rate = (
+            None
+            if not rewrite_checks
+            else sum(1 for value in rewrite_checks if value) / len(rewrite_checks)
+        )
+
+        # Collect RAGAS metrics per category
+        ragas_metrics: dict[str, list[float]] = {
+            "faithfulness": [],
+            "answer_relevancy": [],
+            "context_recall": [],
+        }
+        for item in items:
+            metrics = item.get("metrics", {})
+            for metric_name in ragas_metrics:
+                value = metrics.get(metric_name)
+                if isinstance(value, (int, float)) and value == value:  # valid float (not NaN)
+                    ragas_metrics[metric_name].append(float(value))
+
+        # Calculate mean RAGAS scores
+        ragas_means: dict[str, float | None] = {}
+        for metric_name, values in ragas_metrics.items():
+            ragas_means[metric_name] = (
+                sum(values) / len(values) if values else None
+            )
+
+        # Compute unified overall_category_score
+        score_components: list[float] = []
+
+        # Add pass rates (normalized to 0-1 scale)
+        if source_pass_rate is not None:
+            score_components.append(source_pass_rate)
+        if safe_fail_pass_rate is not None:
+            score_components.append(safe_fail_pass_rate)
+        if rewrite_pass_rate is not None:
+            score_components.append(rewrite_pass_rate)
+
+        # Add RAGAS metrics with relative weights
+        # Weights reflect importance: Faithfulness > Answer Relevancy > Context Recall
+        if ragas_means["faithfulness"] is not None:
+            score_components.append(ragas_means["faithfulness"] * 0.7)
+        if ragas_means["answer_relevancy"] is not None:
+            score_components.append(ragas_means["answer_relevancy"] * 0.8)
+        if ragas_means["context_recall"] is not None:
+            score_components.append(ragas_means["context_recall"] * 0.6)
+
+        overall_category_score = (
+            sum(score_components) / len(score_components)
+            if score_components
+            else None
+        )
+
         summary.append(
             {
                 "category": category,
                 "count": len(items),
-                "source_pass_rate": (
-                    None
-                    if not source_checks
-                    else sum(1 for value in source_checks if value) / len(source_checks)
-                ),
-                "safe_fail_pass_rate": (
-                    None
-                    if not safe_fail_checks
-                    else sum(1 for value in safe_fail_checks if value) / len(safe_fail_checks)
-                ),
-                "rewrite_pass_rate": (
-                    None
-                    if not rewrite_checks
-                    else sum(1 for value in rewrite_checks if value) / len(rewrite_checks)
-                ),
+                "source_pass_rate": source_pass_rate,
+                "safe_fail_pass_rate": safe_fail_pass_rate,
+                "rewrite_pass_rate": rewrite_pass_rate,
                 "source_checks_count": len(source_checks),
                 "safe_fail_checks_count": len(safe_fail_checks),
                 "rewrite_checks_count": len(rewrite_checks),
+                # RAGAS metrics per category
+                "mean_faithfulness": ragas_means["faithfulness"],
+                "mean_answer_relevancy": ragas_means["answer_relevancy"],
+                "mean_context_recall": ragas_means["context_recall"],
+                # Unified overall score combining all metrics
+                "overall_category_score": overall_category_score,
             }
         )
     return summary

@@ -781,7 +781,7 @@ def test_confirmation_followup_uses_prior_user_context_without_reclarifying(tmp_
     assert "retrieve" in second_stages
 
 
-def test_generation_uses_rewritten_query_not_confirmation_text() -> None:
+def test_generation_uses_original_query_not_rewritten_query() -> None:
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -798,7 +798,8 @@ def test_generation_uses_rewritten_query_not_confirmation_text() -> None:
     rewrite_events = [event for event in trace.events if event.stage == "rewrite_query"]
     assert len(rewrite_events) == 1
     rewritten = str(rewrite_events[0].payload.get("rewritten", ""))
-    assert response.answer == f"ANSWER_QUERY={rewritten}"
+    assert trace.original_query != rewritten
+    assert response.answer == f"ANSWER_QUERY={trace.original_query}"
 
 
 def test_ambiguous_results_no_longer_hard_fail() -> None:
@@ -1011,6 +1012,53 @@ def test_reasoner_grounding_supported_keeps_answer() -> None:
     assert len(verify_events) == 1
     assert verify_events[0].payload["status"] == GroundingStatus.SUPPORTED
     assert verify_events[0].payload["grounding_source"] == "llm"
+
+
+def test_refusal_like_answer_forces_safe_fail() -> None:
+    settings = _settings()
+    trace_store = TraceStore()
+
+    class RefusalDetectingReasoner(FakeReasoner):
+        def assess_grounding(
+            self,
+            *,
+            answer: str,
+            citations: list[str],
+            evidence: list[str],
+        ) -> tuple[GroundingResult, str, str | None]:
+            del citations, evidence
+            is_refusal = "does not specify" in answer.lower() or "insufficient evidence" in answer.lower()
+            return (
+                GroundingResult(
+                    status=GroundingStatus.SUPPORTED if not is_refusal else GroundingStatus.UNSUPPORTED,
+                    reason="Detected refusal in answer." if is_refusal else "Grounded in evidence.",
+                    is_refusal=is_refusal,
+                ),
+                "llm",
+                "v1.0.0",
+            )
+
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=RefusalDetectingReasoner(
+            grounding_status=GroundingStatus.SUPPORTED,
+            synthesis_answer="The evidence provided does not specify which GPU was used.",
+        ),
+    )
+
+    response = pipeline.ask("What GPU was used to train BERT?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is True
+    assert response.answer == settings.safe_fail_message
+    assert response.citations == []
+
+    verify_events = [event for event in trace.events if event.stage == "verify_grounding"]
+    assert len(verify_events) == 1
+    assert verify_events[0].payload["is_refusal"] is True
 
 
 def test_reasoner_generation_is_used_and_traced() -> None:

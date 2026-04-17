@@ -25,7 +25,10 @@ class VectorDbManager:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._client = QdrantClient(path=str(settings.vector_db_path))
+        self._client = QdrantClient(
+            path=str(settings.vector_db_path),
+            force_disable_check_same_thread=True
+        )
         self._embeddings = self._build_embeddings(settings)
         self._chunk_lookup: dict[str, EvidenceChunk] = {}
         self._write_lock = Lock()

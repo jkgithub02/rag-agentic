@@ -137,7 +137,7 @@ class QueryReasoner:
         output = GroundingCheckOutput.model_validate(parsed)
         reason = output.reason.strip() or "Reasoner grounding evaluation complete."
         return (
-            GroundingResult(status=output.status, reason=reason),
+            GroundingResult(status=output.status, reason=reason, is_refusal=output.is_refusal),
             "llm",
             output.prompt_version,
         )

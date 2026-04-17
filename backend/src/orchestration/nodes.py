@@ -362,7 +362,7 @@ class PipelineNodes:
             if cited_chunks:
                 evidence_chunks = cited_chunks
             else:
-                evidence_chunks = chunks[:6]
+                evidence_chunks = chunks[:8]
 
             evidence = [chunk.text[:500] for chunk in evidence_chunks[:6]]
             grounding, grounding_source, prompt_version = self._reasoner.assess_grounding(
@@ -371,7 +371,9 @@ class PipelineNodes:
                 evidence=evidence,
             )
 
-            if grounding.status == GroundingStatus.UNSUPPORTED:
+            # Revert to strict rejection: reject if unsupported OR refusal
+            # Keeps unanswerable questions correctly rejected
+            if grounding.status == GroundingStatus.UNSUPPORTED or grounding.is_refusal:
                 answer = self._settings.safe_fail_message
                 citations = []
                 safe_fail = True
@@ -415,7 +417,7 @@ class PipelineNodes:
     ) -> tuple[str, list[str], str, str | None]:
         chunks = state.get("chunks", [])
         chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
-        query_for_generation = state.get("rewritten_query") or state.get("original_query", "")
+        query_for_generation = state.get("original_query") or state.get("rewritten_query") or ""
         answer, citation_chunk_ids, generation_source, prompt_version = (
             self._reasoner.synthesize_answer(query=query_for_generation, chunks=chunks)
         )

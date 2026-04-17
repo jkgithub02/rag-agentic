@@ -40,6 +40,7 @@ class ValidationResult(BaseModel):
 class GroundingResult(BaseModel):
     status: GroundingStatus
     reason: str
+    is_refusal: bool = False
 
 
 class TraceEvent(BaseModel):
@@ -79,6 +80,7 @@ class QueryAnalysisOutput(BaseModel):
 class GroundingCheckOutput(BaseModel):
     status: GroundingStatus
     reason: str
+    is_refusal: bool = False
     prompt_version: str | None = None
 
 

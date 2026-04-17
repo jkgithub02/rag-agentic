@@ -37,7 +37,7 @@ def health() -> dict[str, str]:
 @app.post("/ask", response_model=AskResponse)
 def ask(
     payload: AskRequest,
-    pipeline: AgenticPipeline = Depends(get_pipeline),  # noqa: B008
+    pipeline: AgenticPipeline = Depends(get_pipeline),  
 ) -> AskResponse:
     return pipeline.ask(payload.query, thread_id=payload.thread_id)
 
@@ -45,7 +45,7 @@ def ask(
 @app.post("/ask/stream")
 def ask_stream(
     payload: AskRequest,
-    pipeline: AgenticPipeline = Depends(get_pipeline),  # noqa: B008
+    pipeline: AgenticPipeline = Depends(get_pipeline),  
 ) -> StreamingResponse:
     def event(event_name: str, data: dict[str, object]) -> str:
         return f"event: {event_name}\ndata: {json.dumps(data)}\n\n"
@@ -89,9 +89,9 @@ def ask_stream(
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload_document(
-    file: UploadFile = File(...),  # noqa: B008
-    conflict_policy: ConflictPolicy = Form(default=ConflictPolicy.ASK),  # noqa: B008
-    upload_service: UploadService = Depends(get_upload_service),  # noqa: B008
+    file: UploadFile = File(...),  
+    conflict_policy: ConflictPolicy = Form(default=ConflictPolicy.ASK),  
+    upload_service: UploadService = Depends(get_upload_service),  
 ) -> UploadResponse:
     filename = file.filename or "uploaded-file"
     content = await file.read()
@@ -108,7 +108,7 @@ async def upload_document(
 
 @app.get("/documents")
 def list_documents(
-    upload_service: UploadService = Depends(get_upload_service),  # noqa: B008
+    upload_service: UploadService = Depends(get_upload_service),  
 ) -> dict[str, object]:
     return {"documents": upload_service.list_documents()}
 
@@ -116,7 +116,7 @@ def list_documents(
 @app.delete("/documents/{source_name}")
 def delete_document(
     source_name: str,
-    upload_service: UploadService = Depends(get_upload_service),  # noqa: B008
+    upload_service: UploadService = Depends(get_upload_service),  
 ) -> dict[str, object]:
     deleted = upload_service.delete_document(source_name)
     if not deleted:
@@ -126,7 +126,7 @@ def delete_document(
 
 @app.delete("/documents")
 def delete_all_documents(
-    upload_service: UploadService = Depends(get_upload_service),  # noqa: B008
+    upload_service: UploadService = Depends(get_upload_service),  
 ) -> dict[str, object]:
     deleted_count = upload_service.delete_all_documents()
     return {"deleted": True, "deleted_count": deleted_count}
@@ -135,7 +135,7 @@ def delete_all_documents(
 @app.get("/trace/{trace_id}", response_model=PipelineTrace)
 def get_trace(
     trace_id: str,
-    trace_store: TraceStore = Depends(get_trace_store),  # noqa: B008
+    trace_store: TraceStore = Depends(get_trace_store),  
 ) -> PipelineTrace:
     trace = trace_store.get(trace_id)
     if trace is None:
@@ -146,6 +146,6 @@ def get_trace(
 @app.get("/traces", response_model=list[PipelineTrace])
 def list_traces(
     limit: int = 20,
-    trace_store: TraceStore = Depends(get_trace_store),  # noqa: B008
+    trace_store: TraceStore = Depends(get_trace_store),  
 ) -> list[PipelineTrace]:
     return trace_store.list_recent(limit=limit)
