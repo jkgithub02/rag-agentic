@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     agent_max_iterations: int = 10
     agent_max_tool_calls: int = 8
 
-    min_relevance_score: float = 0.07
+    min_relevance_score: float = 0.05
     ambiguity_margin: float = 0.005
 
     safe_fail_message: str = (

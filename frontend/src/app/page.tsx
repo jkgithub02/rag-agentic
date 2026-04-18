@@ -25,10 +25,6 @@ export default function Home() {
           <h1 className="text-3xl font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
             Search, cite, and manage your knowledge base
           </h1>
-          <p className="max-w-2xl text-sm text-[var(--ink-muted)] sm:text-base">
-            Next.js foundation with chat continuity, upload conflict handling, and knowledge
-            base operations.
-          </p>
         </header>
 
         <Tabs

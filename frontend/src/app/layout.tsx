@@ -13,8 +13,8 @@ const firaCode = Fira_Code({
 });
 
 export const metadata: Metadata = {
-  title: "Agentic RAG Frontend",
-  description: "Next.js UI for chat, uploads, and knowledge base operations.",
+  title: "Agentic RAG",
+  description: "Agentic RAG - Ask your agents questions, upload files, and manage your knowledge base with ease.",
 };
 
 export default function RootLayout({

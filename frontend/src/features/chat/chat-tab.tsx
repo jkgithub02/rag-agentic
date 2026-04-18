@@ -94,6 +94,23 @@ function ExportIcon() {
     );
 }
 
+function AnimatedLoadingIndicator() {
+    const [dotCount, setDotCount] = useState(1);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setDotCount((prev) => (prev % 5) + 1);
+        }, 500);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="text-sm text-[var(--ink-muted)]">
+            Thinking{".".repeat(dotCount)}
+        </div>
+    );
+}
+
 function readHistory(): ChatHistorySession[] {
     try {
         const raw = localStorage.getItem(CHAT_HISTORY_KEY);
@@ -446,12 +463,19 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
 
             <div
                 ref={messageContainerRef}
-                className="max-h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-4"
+                className="max-h-[900px] space-y-3 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-4 flex flex-col"
             >
                 {messages.length === 0 ? (
-                    <p className="text-sm text-[var(--ink-muted)]">
-                        Start a conversation by typing a question below.
-                    </p>
+                    <div className="flex-1 flex items-center justify-center">
+                        <div className="text-center">
+                            <h2 className="text-5xl font-bold text-[var(--ink)] mb-4">
+                                Hello there, how can I help?
+                            </h2>
+                            <p className="text-lg text-[var(--ink-muted)]">
+                                Ask me anything about your uploaded documents
+                            </p>
+                        </div>
+                    </div>
                 ) : null}
 
                 {messages.map((message) => (
@@ -487,54 +511,36 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
                                 </ul>
                             ) : null}
 
-                            {message.role === "assistant" && message.traceId ? (
-                                <div className="mt-2 space-y-2 text-[11px] text-[var(--ink-muted)]">
-                                    <p>
-                                        Trace ID: {message.traceId}
-                                        {message.safeFail ? " | Safe-fail" : ""}
-                                    </p>
-                                    {tracesById[message.traceId] ? (
-                                        <details className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-                                            <summary className="cursor-pointer text-[11px] font-semibold text-[var(--ink)]">
-                                                Query Rewrite Trace
-                                            </summary>
-                                            <div className="mt-2 space-y-1 text-[11px] leading-5 text-[var(--ink)]">
-                                                <p>
-                                                    <span className="font-semibold">Original:</span>{" "}
-                                                    {tracesById[message.traceId].original_query}
-                                                </p>
-                                                <p>
-                                                    <span className="font-semibold">Rewritten:</span>{" "}
-                                                    {tracesById[message.traceId].rewritten_query}
-                                                </p>
-                                                {(() => {
-                                                    const metadata = extractRewriteMetadata(tracesById[message.traceId]);
-                                                    return (
-                                                        <>
-                                                            {metadata.rewriteSource ? (
-                                                                <p>
-                                                                    <span className="font-semibold">Source:</span>{" "}
-                                                                    {metadata.rewriteSource}
-                                                                </p>
-                                                            ) : null}
-                                                            {metadata.clarifyNeeded !== null ? (
-                                                                <p>
-                                                                    <span className="font-semibold">Clarify Needed:</span>{" "}
-                                                                    {metadata.clarifyNeeded ? "true" : "false"}
-                                                                </p>
-                                                            ) : null}
-                                                            {metadata.clarifyReason ? (
-                                                                <p>
-                                                                    <span className="font-semibold">Clarify Reason:</span>{" "}
-                                                                    {metadata.clarifyReason}
-                                                                </p>
-                                                            ) : null}
-                                                        </>
-                                                    );
-                                                })()}
+                            {message.role === "assistant" && message.traceId && tracesById[message.traceId] ? (
+                                <div className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-[11px] text-[var(--ink-muted)]">
+                                    {(() => {
+                                        const trace = tracesById[message.traceId];
+                                        const metadata = extractRewriteMetadata(trace);
+                                        const queryWasRewritten = trace.original_query !== trace.rewritten_query;
+
+                                        return (
+                                            <div className="space-y-2">
+                                                {queryWasRewritten && (
+                                                    <div>
+                                                        <p className="mb-1 text-[10px] font-semibold text-[var(--ink)]">Understanding</p>
+                                                        <p className="text-[11px]">
+                                                            <span className="font-semibold">Your question:</span> {trace.original_query}
+                                                        </p>
+                                                        <p className="mt-1 text-[11px]">
+                                                            <span className="font-semibold">What I searched:</span> {trace.rewritten_query}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {metadata.clarifyNeeded && metadata.clarifyReason && (
+                                                    <div>
+                                                        <p className="text-[11px]">
+                                                            <span className="font-semibold">Note:</span> {metadata.clarifyReason}
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </details>
-                                    ) : null}
+                                        );
+                                    })()}
                                 </div>
                             ) : null}
                         </article>
@@ -543,7 +549,7 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
 
                 {isLoading ? (
                     <div className="max-w-[90%] rounded-2xl bg-white px-4 py-3 text-sm text-[var(--ink-muted)] shadow-sm">
-                        Assistant is thinking...
+                        <AnimatedLoadingIndicator />
                     </div>
                 ) : null}
             </div>
