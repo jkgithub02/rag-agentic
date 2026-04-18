@@ -71,25 +71,16 @@ uv run python -m src.evaluation.evaluate --api-url http://127.0.0.1:8000 --outpu
 
 ### Key Features
 
-✅ **Deterministic retrieval**: Hybrid dense/sparse search with configurable fusion
-✅ **Explicit tool-calling**: Search and fetch operations with complete tracing
-✅ **Grounding verification**: LLM-based validation of citations against evidence
-✅ **Safe-fail mechanism**: Refuses to answer when evidence is insufficient
-✅ **Conversation awareness**: Detects and answers meta-queries about conversation history
-✅ **Full observability**: Every step traced with evidence, citations, and reasoning
-✅ **Production API**: FastAPI with streaming responses and conflict resolution
-✅ **Comprehensive evaluation**: 30-question RAGAS test suite across 7 categories
-✅ **Standardized test suite**: 12 core test files with 100+ assertions
+- ✅ **Deterministic retrieval**: Hybrid dense/sparse search with configurable fusion
+- ✅ **Explicit tool-calling**: Search and fetch operations with complete tracing
+- ✅ **Grounding verification**: LLM-based validation of citations against evidence
+- ✅ **Safe-fail mechanism**: Refuses to answer when evidence is insufficient
+- ✅ **Conversation awareness**: Detects and answers meta-queries about conversation history
+- ✅ **Full observability**: Every step traced with evidence, citations, and reasoning
+- ✅ **Production API**: FastAPI with streaming responses and conflict resolution
+- ✅ **Comprehensive evaluation**: 30-question RAGAS test suite across 7 categories
+- ✅ **Standardized test suite**: 12 core test files with 100+ assertions
 
-### Production Readiness
-
-This system has been optimized for production use through:
-- **Strict grounding**: Rejects hallucinations with RAGAS-verified safe-fail mechanism
-- **Full tracing**: Every decision logged with evidence and reasoning for audits
-- **Error handling**: Graceful degradation with fallback responses
-- **Streaming API**: Real-time token delivery for responsive UX
-- **Conflict resolution**: Smart handling of duplicate documents and version conflicts
-- **Conversation continuity**: Maintains context across turns with smart history management
 
 ---
 
@@ -129,13 +120,13 @@ This system has been optimized for production use through:
 └────────────────────────────┬────────────────────────────────────────┘
                              │
                 ┌────────────▼────────────┐
-                │  Query Analysis        │
-                │  (clarify if needed)   │
+                │  Query Analysis         │
+                │  (clarify if needed)    │
                 └────────────┬────────────┘
                              │
                 ┌────────────▼──────────────────────┐
-                │  Detect Query Type               │
-                │  (document vs conversation meta) │
+                │  Detect Query Type                │
+                │  (document vs conversation meta)  │
                 └────────────┬──────────────────────┘
                              │
             ┌────────────────┴─────────────────┐
@@ -145,18 +136,18 @@ This system has been optimized for production use through:
        │Query     │             │ (Answer from history)   │
        └────┬─────┘             └──────────────┬──────────┘
             │                                  │
-            ├─────────┬──────────────────┬─────┤
-            │                            │     │
-   ┌────────▼────────────────────────────▼─┐  │ Answer → Finish
-   │  Vector Retrieval (Hybrid)            │  │
-   │  Dense: LLM embeddings                │  │
-   │  Sparse: BM25 keyword match           │  │
-   │  Fusion: Weighted score               │  │
-   └────────┬──────────────────────────────┘  │
+            ├──────────────────────────────────┤
+            │                                  ▼
+   ┌────────▼────────────────────────────-─┐  │ Answer → Finish	|							   |
+   │  Vector Retrieval (Hybrid)            │  
+   │  Dense: LLM embeddings                │  
+   │  Sparse: BM25 keyword match           │  
+   │  Fusion: Weighted score               │  
+   └───────────────────────────────────────┘  
                              │
                 ┌────────────▼──────────────┐
-                │  Ambiguity Detection     │
-                │  (score margin check)    │
+                │  Ambiguity Detection      │
+                │  (score margin check)     │
                 └────────────┬──────────────┘
                              │
                 ┌────────────▼──────────────────────┐
@@ -166,9 +157,9 @@ This system has been optimized for production use through:
                 └────────────┬──────────────────────┘
                              │
                 ┌────────────▼──────────────┐
-                │  Answer Generation       │
-                │  (LLM synthesis)         │
-                │  + Citation tracking     │
+                │  Answer Generation        │
+                │  (LLM synthesis)          │
+                │  + Citation tracking      │
                 └────────────┬──────────────┘
                              │
                 ┌────────────▼──────────────────┐
@@ -186,7 +177,7 @@ This system has been optimized for production use through:
              │                               │
    ┌─────────▼────────────────────────────────▼────────┐
    │  Return Response (citations + trace info)         │
-   └────────────────────────────────────────────────────┘
+   └───────────────────────────────────────────────────┘
 ```
 
 ### Component Relationship Diagram
@@ -194,18 +185,18 @@ This system has been optimized for production use through:
 ```
 ┌──────────────────────────────────────────────────────┐
 │                    FastAPI Server                    │
-│  /ask  /ask/stream  /upload  /documents  /traces    │
-└───────────────────────┬────────────────────────────┘
+│  /ask  /ask/stream  /upload  /documents  /traces     │
+└───────────────────────┬──────────────────────────────┘
                         │
         ┌───────────────┼───────────────┐
         │               │               │
    ┌────▼──────┐  ┌────▼──────┐  ┌────▼──────┐
    │ Pipeline  │  │  Trace    │  │  Upload   │
    │ (Graph)   │  │  Store    │  │  Service  │
-   └────┬──────┘  └───────────┘  └────┬──────┘
+   └────┬──────┘  └───────────┘  └─────┬─────┘
         │                              │
     ┌───▼──────────────────────────────▼───┐
-    │         Vector DB Manager             │
+    │         Vector DB Manager            │
     │  - Qdrant (vector store)             │
     │  - Chunk lookup                      │
     │  - Hybrid search (dense/sparse)      │
@@ -213,7 +204,7 @@ This system has been optimized for production use through:
                     │
         ┌───────────┴──────────┐
         │                      │
-   ┌────▼──────┐     ┌────────▼────┐
+   ┌────▼──────┐     ┌─────────▼───┐
    │   LLM     │     │ Embeddings  │
    │ (Bedrock) │     │ (Ollama)    │
    └───────────┘     └─────────────┘
@@ -253,7 +244,7 @@ This system has been optimized for production use through:
 
 All stages emit events to trace store for observability.
 
-### Conversation Meta-Query Detection (Phase 4)
+### Conversation Meta-Query Detection
 
 **What is a conversation meta-query?**
 - Questions about the **conversation itself**, not about documents
@@ -545,17 +536,6 @@ uv run pytest tests/test_services_reasoner.py::test_assess_grounding_handles_mal
 
 ## Implementation Details
 
-### Grounding Logic (Phase 3 Fix)
-
-**Problem**: Strengthened answer_prompt told model "Don't use hedging phrases like 'I do not have sufficient evidence'", but grounding_prompt only recognized old phrases.
-
-**Solution**: Added new refusal pattern detection:
-- "The provided evidence does not contain"
-- "does not provide information about"
-- "evidence does not discuss"
-
-**Result**: C5 safe-fail pass rate improved 50% → 100%
-
 ### Prompt Engineering Decisions
 
 1. **Answer Prompt** (src/core/prompts.py): Encourages confident answers with specific citations
@@ -571,7 +551,7 @@ All prompts are externalized for easy iteration and A/B testing.
 - **Fusion**: Weighted score combining both (configurable weights)
 - **Ambiguity detection**: If top 2 chunks have similar scores, mark as ambiguous
 
-### Conversation Meta-Query Detection (Phase 4)
+### Conversation Meta-Query Detection
 
 **Implementation**:
 
