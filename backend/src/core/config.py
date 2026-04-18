@@ -1,14 +1,17 @@
+import logging
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
     """Runtime settings for Agentic RAG."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(Path(__file__).resolve().parents[2] / ".env"),
         env_file_encoding="utf-8",
         env_prefix="AGENTIC_RAG_",
         extra="ignore",
@@ -63,4 +66,49 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    """Load and cache settings from .env or defaults, with logging."""
+    # Ensure logging is configured to show INFO level
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s:%(name)s:%(message)s'
+    )
+    
+    settings = Settings()
+    
+    # Log configuration on startup
+    env_file_path = Path(__file__).resolve().parents[2] / ".env"
+    
+    print("=" * 70)
+    print("⚙️  CONFIGURATION LOADED")
+    print("=" * 70)
+    print(f"Environment file: {env_file_path}")
+    print(f"Environment file exists: {env_file_path.exists()}")
+    print("\n📋 Core Settings:")
+    print(f"  • AWS Region: {settings.aws_region}")
+    print(f"  • Bedrock Model: {settings.bedrock_chat_model_id}")
+    print(f"  • Reasoning Enabled: {settings.reasoning_enabled}")
+    print(f"  • Reasoning Temperature: {settings.reasoning_temperature}")
+    print(f"  • Reasoning Max Tokens: {settings.reasoning_max_tokens}")
+    print("\n🔍 Retrieval Settings:")
+    print(f"  • Embedding Provider: {settings.embedding_provider}")
+    print(f"  • Ollama Base URL: {settings.ollama_base_url}")
+    print(f"  • Ollama Embedding Model: {settings.ollama_embedding_model}")
+    print(f"  • Retrieval Mode: {settings.retrieval_mode}")
+    print(f"  • Retrieval Top K: {settings.retrieval_top_k}")
+    print(f"  • Dense Weight: {settings.retrieval_dense_weight}")
+    print(f"  • Sparse Weight: {settings.retrieval_sparse_weight}")
+    print("\n📦 Document Settings:")
+    print(f"  • Chunk Size: {settings.chunk_size}")
+    print(f"  • Chunk Overlap: {settings.chunk_overlap}")
+    print(f"  • Documents Dir: {settings.documents_dir}")
+    print(f"  • Vector DB Path: {settings.vector_db_path}")
+    print(f"  • Max Upload Size: {settings.upload_max_file_size_mb} MB")
+    print("\n🌐 API Settings:")
+    print(f"  • CORS Origins: {', '.join(settings.cors_allowed_origins)}")
+    print(f"  • Stream Token Delay: {settings.stream_token_delay_seconds}s")
+    print("=" * 70)
+    
+    # Also log through logger
+    logger.info("✓ Settings initialized successfully")
+    
+    return settings
