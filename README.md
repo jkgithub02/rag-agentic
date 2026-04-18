@@ -437,28 +437,84 @@ uv run pytest tests/test_evaluation_ragas.py -v -k "not live"
 uv run pytest tests/test_evaluation_ragas.py::test_question_bank_covers_all_requested_categories -v
 ```
 
-### Understanding Report Output
+### Report Output
 
 ```json
 {
-  "overall_score": 0.9119,
+  "generated_at_utc": "2026-04-17T13:25:06.859343+00:00",
+  "api_url": "http://127.0.0.1:8000",
+  "question_count": 30,
+  "factual_question_count": 9,
+  "behavioral_question_count": 21,
+  "metrics": [
+    "faithfulness",
+    "answer_relevancy",
+    "context_recall"
+  ],
   "mean_scores": {
-    "answer_relevancy": 0.8189,
-    "faithfulness": 0.9167,
+    "faithfulness": 0.7685185185185186,
+    "answer_relevancy": 0.8158877779231344,
     "context_recall": 1.0
   },
-  "questions": [
+  "valid_counts": {
+    "faithfulness": 9,
+    "answer_relevancy": 9,
+    "context_recall": 9
+  },
+  "excluded_counts": {
+    "faithfulness": 0,
+    "answer_relevancy": 0,
+    "context_recall": 0
+  },
+  "overall_score": 0.861468765480551,
+  "rows": [
     {
       "id": "C1-001",
-      "query": "What is BERT?",
       "category": "straightforward_factual",
-      "answer_relevancy_assertion_pass": true,
-      "faithfulness_assertion_pass": true,
-      "context_recall_assertion_pass": true,
-      "trace": { /* full execution trace */ }
-    }
-    // ... 29 more questions
-  ]
+      "input": "What problem does the Transformer architecture solve?",
+      "rewritten_query": "What problem does the Transformer architecture solve?",
+      "generated_output": "The Transformer architecture solves the problem of sequential dependency in neural networks by eschewing recurrence and instead relying entirely on self-attention mechanisms to compute representations of input and output [attention-is-all-you-need-pdf-0004]. This allows the model to capture dependencies without regard to their distance in sequences, eliminating the need for sequence-aligned RNNs or convolution [attention-is-all-you-need-pdf-0006].",
+      "chunks_retrieved_count": 20,
+      "chunks_retrieved": [
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0006",
+          "source": "Attention is all you need.pdf",
+          "score": 0.9193448965037008
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.8749125686598027
+        },
+        {
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0009",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.5725001970178885
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0004",
+          "source": "Attention is all you need.pdf",
+          "score": 0.8453627156377637
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0027",
+          "source": "Attention is all you need.pdf",
+          "score": 0.6961645223076744
+        }
+      ],
+      "source_assertion_pass": true,
+      "safe_fail_assertion_pass": null,
+      "rewrite_assertion_pass": null,
+      "metrics": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7668410946751539,
+        "context_recall": 1.0
+      },
+      "overall_score": 0.9222803648917179
+    },
+    {
+      "id": "C1-002",
+       //Remaining Questions...
 }
 ```
 
