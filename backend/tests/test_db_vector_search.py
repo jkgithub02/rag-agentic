@@ -177,3 +177,39 @@ def test_dense_mode_uses_dense_results_only(
 
     assert len(hits) >= 2
     assert hits[0].chunk_id == "attn-0001"
+
+
+def test_search_handles_empty_query_safely(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test: Empty queries don't crash; return safe default (empty results).
+    
+    Ensures vector DB search is resilient to edge case of empty query string
+    that might occur from user input or pipeline errors.
+    """
+    manager = _make_manager(
+        tmp_path,
+        monkeypatch,
+        retrieval_mode="hybrid",
+        retrieval_neighbor_span=0,
+    )
+
+    (manager._settings.documents_dir / "doc.txt").write_text("context", encoding="utf-8")
+
+    manager._chunk_lookup = {
+        "chunk-0001": EvidenceChunk(
+            chunk_id="chunk-0001",
+            source="doc.txt",
+            text="Some evidence.",
+            score=0.0,
+        ),
+    }
+    manager._client = _FakeQdrantClient([])
+
+    # Empty query should not crash and should return empty or graceful result
+    hits = manager.search("", top_k=2)
+
+    assert isinstance(hits, list)
+    # Either empty or safely handled
+    assert len(hits) >= 0

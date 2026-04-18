@@ -165,3 +165,25 @@ def test_delete_all_documents_removes_supported_files_and_rebuilds_index(tmp_pat
     assert not (tmp_path / "notes.txt").exists()
     assert (tmp_path / "keep.json").exists()
     assert any(call.get("rebuilt") is True for call in vector_db.calls)
+
+
+def test_upload_rejects_files_exceeding_max_size(tmp_path: Path) -> None:
+    """Test: Files larger than max_file_size_mb are rejected with validation error.
+    
+    Ensures upload service enforces size limits before processing to prevent
+    memory exhaustion or processing of unexpectedly large files.
+    """
+    service = UploadService(
+        settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=1),  # 1 MB limit
+        vector_db=FakeVectorDb(),
+    )
+
+    # Create content larger than 1 MB
+    oversized_content = b"x" * (2 * 1024 * 1024)  # 2 MB
+
+    with pytest.raises(UploadValidationError):
+        service.upload_bytes(
+            filename="oversized.md",
+            content=oversized_content,
+            conflict_policy=ConflictPolicy.ASK,
+        )

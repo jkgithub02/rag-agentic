@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.config import Settings
 from src.core.models import EvidenceChunk, GroundingStatus
 from src.services.reasoner import QueryReasoner
@@ -43,6 +45,10 @@ def _settings() -> Settings:
 
 
 def test_assess_grounding_normalizes_grounded_to_supported() -> None:
+    """Test: LLM response 'grounded' normalizes to internal SUPPORTED status.
+    
+    Ensures legacy LLM response language maps correctly to system enum.
+    """
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_StubLLMClient('{"status":"grounded","reason":"Backed by evidence."}'),
@@ -60,6 +66,10 @@ def test_assess_grounding_normalizes_grounded_to_supported() -> None:
 
 
 def test_assess_grounding_normalizes_ungrounded_to_unsupported() -> None:
+    """Test: LLM response 'ungrounded' normalizes to internal UNSUPPORTED status.
+    
+    Ensures legacy response language correctly rejects unsupported answers.
+    """
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_StubLLMClient('{"status":"ungrounded","reason":"Not found in evidence."}'),
@@ -75,6 +85,11 @@ def test_assess_grounding_normalizes_ungrounded_to_unsupported() -> None:
 
 
 def test_synthesize_answer_falls_back_to_top_chunk_ids_when_invalid_ids_returned() -> None:
+    """Test: Invalid citation IDs fall back to top-scored chunks in order.
+    
+    When LLM returns unrecognized chunk IDs, system preserves answer and uses
+    top evidence by relevance score (prevents answer loss due to bad citations).
+    """
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_StubLLMClient(
@@ -95,6 +110,11 @@ def test_synthesize_answer_falls_back_to_top_chunk_ids_when_invalid_ids_returned
 
 
 def test_analyze_query_normalizes_non_string_clarification_needed() -> None:
+    """Test: Non-string clarification values convert to descriptive strings.
+    
+    When LLM returns boolean/null for clarification_needed field, system
+    generates human-readable clarification text (improves UX consistency).
+    """
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_StubLLMClient(
@@ -111,6 +131,11 @@ def test_analyze_query_normalizes_non_string_clarification_needed() -> None:
 
 
 def test_synthesize_answer_retries_when_first_response_is_not_json() -> None:
+    """Test: Non-JSON response triggers automatic retry for answer synthesis.
+    
+    First call returns plain text (JSON parse failure), second call returns
+    valid JSON. System recovers without surfacing error to user.
+    """
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_SequentialStubLLMClient(
@@ -131,6 +156,11 @@ def test_synthesize_answer_retries_when_first_response_is_not_json() -> None:
 
 
 def test_analyze_query_retries_when_first_response_is_not_json() -> None:
+    """Test: Non-JSON response triggers automatic retry for query analysis.
+    
+    First call returns non-JSON, second returns valid structured analysis.
+    Verifies system doesn't fail-fast on transient LLM response format issues.
+    """
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_SequentialStubLLMClient(
@@ -179,3 +209,27 @@ def test_synthesize_answer_uses_source_diverse_evidence_selection() -> None:
     assert "cite every source" in synthesis_prompt
     assert "[rag-0001]" in synthesis_prompt
     assert "[bert-0001]" in synthesis_prompt
+
+
+def test_assess_grounding_handles_malformed_json() -> None:
+    """Test: Malformed JSON in grounding response raises controlled exception.
+    
+    When LLM returns invalid JSON for grounding assessment, system should
+    raise LLMInvocationError (not crash with generic JSON error).
+    """
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient(
+            '{"status":"supported","reason": INVALID_JSON}'  # Malformed: missing quotes around value
+        ),
+    )
+
+    # Should raise controlled LLMInvocationError, not generic JSON error
+    from src.services.llm_client import LLMInvocationError
+    
+    with pytest.raises(LLMInvocationError):
+        reasoner.assess_grounding(
+            answer="Test answer.",
+            citations=["chunk-001"],
+            evidence=["Test evidence."],
+        )
