@@ -8,6 +8,14 @@ class PipelineEdges:
         pass
 
     def route_after_rewrite(self, state: PipelineState) -> str:
+        if state.get("clarify_needed"):
+            return "clarify"
+        return "detect_query_type"
+
+    def route_after_detect_query_type(self, state: PipelineState) -> str:
+        """Route based on whether this is a conversation meta-query."""
+        if state.get("is_conversation_query"):
+            return "finish"
         return "retrieve"
 
     def route_after_should_compress(self, state: PipelineState) -> str:

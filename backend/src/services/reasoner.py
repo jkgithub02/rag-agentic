@@ -270,3 +270,25 @@ class QueryReasoner:
             "unsupported": "unsupported",
         }
         return synonyms.get(normalized, normalized)
+
+    def detect_conversation_query(self, *, query: str) -> tuple[bool, float]:
+        """
+        Detect if a query is asking about the conversation history itself (meta-query)
+        vs asking about document content.
+        
+        Returns: (is_conversation_query, confidence)
+        """
+        if not self._settings.reasoning_enabled:
+            return False, 0.0
+        
+        from src.core.prompts import conversation_query_detection_prompt
+        
+        prompt = conversation_query_detection_prompt(query=query)
+        try:
+            parsed = self._invoke_structured_raw(prompt)
+            is_conv = parsed.get("is_conversation_query", False)
+            confidence = float(parsed.get("confidence", 0.5))
+            return bool(is_conv), min(max(confidence, 0.0), 1.0)
+        except Exception:
+            # Default to document query on error
+            return False, 0.0

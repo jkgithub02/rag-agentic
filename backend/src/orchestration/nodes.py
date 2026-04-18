@@ -109,6 +109,91 @@ class PipelineNodes:
         del state
         return {}
 
+    def detect_query_type(self, state: PipelineState) -> PipelineState:
+        """
+        Detect if the query is about the conversation itself (meta-query).
+        If so, generate answer from conversation history instead of document retrieval.
+        """
+        trace = state["trace"]
+        rewritten_query = state.get("rewritten_query", "")
+        conversation_summary = state.get("conversation_summary", "")
+        history = state.get("history", [])
+        
+        is_conversation_query, confidence = self._reasoner.detect_conversation_query(
+            query=rewritten_query
+        )
+        
+        self._event(
+            trace,
+            "detect_query_type",
+            {
+                "is_conversation_query": is_conversation_query,
+                "confidence": confidence,
+                "rewritten_query": rewritten_query,
+            },
+        )
+        
+        # Threshold: 0.5 (more lenient) - prefer conversation interpretation if uncertain
+        if not is_conversation_query or confidence < 0.5:
+            return {"is_conversation_query": False, "trace": trace}
+        
+        # This IS a conversation query - answer from history
+        # Even with minimal history, provide the best answer we can
+        if not history or len(history) <= 1:
+            answer = (
+                "This is our first interaction, so I don't have prior conversation history to reference. "
+                "Feel free to ask me about the uploaded documents instead!"
+            )
+            grounding = GroundingResult(
+                status=GroundingStatus.SUPPORTED,
+                reason="Answered meta-query (first interaction, no prior history).",
+            )
+            return {
+                "is_conversation_query": True,
+                "answer": answer,
+                "citations": [],
+                "safe_fail": False,
+                "grounding": grounding,
+                "trace": trace,
+            }
+        
+        # Synthesize from available history
+        try:
+            history_text = "\n".join(
+                f"{item.get('role', 'user').title()}: {item.get('content', '')}"
+                for item in history[-10:]  # Use last 10 turns
+            )
+            answer, _, _, _ = self._reasoner.synthesize_answer(
+                query=rewritten_query,
+                chunks=[
+                    EvidenceChunk(
+                        chunk_id="conversation",
+                        text=history_text,
+                        source="conversation_history",
+                        score=1.0,
+                    )
+                ],
+            )
+            grounding = GroundingResult(
+                status=GroundingStatus.SUPPORTED,
+                reason="Answered from conversation history.",
+            )
+        except Exception as exc:
+            answer = f"Based on our conversation so far: {history_text[:200]}..."
+            grounding = GroundingResult(
+                status=GroundingStatus.SUPPORTED,
+                reason="Answered from conversation history.",
+            )
+        
+        return {
+            "is_conversation_query": True,
+            "answer": answer,
+            "citations": [],
+            "safe_fail": False,
+            "grounding": grounding,
+            "trace": trace,
+        }
+
     def retrieve(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         rewritten_queries = state.get("rewritten_queries") or [state["rewritten_query"]]

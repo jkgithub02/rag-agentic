@@ -81,3 +81,33 @@ def grounding_prompt(*, answer: str, citations: list[str], evidence: str) -> str
         f"Citations: {citations}\n"
         f"Evidence:\n{evidence}"
     )
+
+
+def conversation_query_detection_prompt(*, query: str) -> str:
+    return (
+        "You are analyzing whether a user query is asking anything conversational OR asking about documents.\n"
+        "\n"
+        "CONVERSATION META-QUERIES (is_conversation_query=true): Ask anything casual or conversational, NOT FACTUAL\n"
+        "- 'What topics have we discussed?'\n"
+        "- 'Summarize what I asked you'\n"
+        "- 'What have I been asking?'\n"
+        "- 'Remind me of our conversation'\n"
+        "- 'What documents did I upload?'\n"
+        "- 'Recap what we talked about'\n"
+        "\n"
+        "DOCUMENT QUERIES (is_conversation_query=false): Ask about information IN the documents\n"
+        "- 'What is [example term] in [example document]?'\n"
+        "- 'Tell me about [term or document in knowledge base]'\n"
+        "- 'Compare these [documents]'\n"
+        "\n"
+        "IMPORTANT: Meta-queries should have HIGH confidence (0.75-1.0).\n"
+        "Document queries should have LOWER/MEDIUM confidence (0.1-0.5) since we always search documents.\n"
+        "\n"
+        "Return ONLY valid JSON with exactly these keys:\n"
+        "{\n"
+        '  "is_conversation_query": boolean,\n'
+        '  "confidence": number (0.0-1.0),\n'
+        f'  "prompt_version": "{PROMPT_VERSION}"\n'
+        "}\n"
+        f"User query: {query}"
+    )

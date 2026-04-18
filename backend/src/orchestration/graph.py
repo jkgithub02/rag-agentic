@@ -23,6 +23,7 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
     graph = StateGraph(PipelineState)
     graph.add_node("summarize_history", nodes.summarize_history)
     graph.add_node("rewrite_query", nodes.rewrite_query)
+    graph.add_node("detect_query_type", nodes.detect_query_type)
     graph.add_node("retrieve", nodes.retrieve)
     graph.add_node("should_compress_context", nodes.should_compress_context)
     graph.add_node("compress_context", nodes.compress_context)
@@ -38,9 +39,14 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
     graph.add_conditional_edges(
         "rewrite_query",
         edges.route_after_rewrite,
-        {"clarify": "clarify", "retrieve": "retrieve"},
+        {"clarify": "clarify", "detect_query_type": "detect_query_type"},
     )
     graph.add_edge("clarify", "rewrite_query")
+    graph.add_conditional_edges(
+        "detect_query_type",
+        edges.route_after_detect_query_type,
+        {"retrieve": "retrieve", "finish": "finish"},
+    )
     graph.add_edge("retrieve", "should_compress_context")
     graph.add_conditional_edges(
         "should_compress_context",
