@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     chunk_size: int = 1200
     chunk_overlap: int = 150
-    retrieval_top_k: int = 4
+    retrieval_top_k: int = 7
     retrieval_neighbor_span: int = 1
     retrieval_mode: str = "hybrid"
     retrieval_dense_weight: float = 0.65

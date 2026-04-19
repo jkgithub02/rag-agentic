@@ -1,6 +1,6 @@
 # Agentic RAG: Production-Ready Retrieval-Augmented Generation
 
-**A high-performance, evaluation-driven RAG system combining LangGraph orchestration, hybrid vector retrieval, and strict grounding logic to achieve 91.19% RAGAS accuracy.**
+**A high-performance, evaluation-driven RAG system combining LangGraph orchestration, hybrid vector retrieval, and strict grounding logic with measured 86.15% RAGAS overall score on the latest 30-question run.**
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Agentic RAG is a **production-ready Retrieval-Augmented Generation system** desi
 
 ### How It Works
 
-The system processes user queries through an 8-stage pipeline:
+The system processes user queries through an 8-stage conceptual pipeline (implemented as a 12-node LangGraph):
 
 1. **Summarize conversation history** — Extract context from prior turns
 2. **Analyze & rewrite queries** — Clarify vague questions using conversation context
@@ -51,16 +51,16 @@ This system is evaluated using **RAGAS (Retrieval-Augmented Generation Assessmen
 - **C2 (Precise Attribution)**: Accurate citations and specific claims
 - **C3 (Cross-Document)**: Multi-source synthesis and comparison
 - **C4 (Inference Quality)**: Reasoning without hallucination
-- **C5 (Safe-Fail)**: Correctly refusing unanswerable questions ✅ 100% pass rate
+- **C5 (Safe-Fail)**: Correctly refusing unanswerable questions
 - **C6 (Ambiguous Queries)**: Handling vague or unclear questions
 - **C7 (Semantic Mismatch)**: Finding answers despite wording differences
 
 **Metrics Measured**:
 | Metric | Score | Meaning |
 |--------|-------|---------|
-| **Overall Score** | **91.19%** | Weighted average across all categories |
-| Answer Relevancy | 81.89% | How well answers match the query intent |
-| Faithfulness | 91.67% | Factual accuracy given the retrieved evidence |
+| **Overall Score** | **86.15%** | Weighted average across all categories |
+| Answer Relevancy | 81.59% | How well answers match the query intent |
+| Faithfulness | 76.85% | Factual accuracy given the retrieved evidence |
 | Context Recall | 100% | Ability to find all relevant document sections |
 | Safe-Fail Rate | 100% | Correctly refusing impossible questions |
 
@@ -86,13 +86,13 @@ uv run python -m src.evaluation.evaluate --api-url http://127.0.0.1:8000 --outpu
 
 ## Performance Results
 
-### RAGAS Metrics (91.19% Overall)
+### RAGAS Metrics (Latest Run: 86.15% Overall)
 
 | Metric | Score | Details |
 |--------|-------|---------|
-| **Overall Score** | **91.19%** | Across all 30 questions |
-| Answer Relevancy | 81.89% | How well answers match queries |
-| Faithfulness | 91.67% | Factual accuracy given evidence |
+| **Overall Score** | **86.15%** | Across all 30 questions |
+| Answer Relevancy | 81.59% | How well answers match queries |
+| Faithfulness | 76.85% | Factual accuracy given evidence |
 | Context Recall | 100% | Ability to retrieve relevant chunks |
 | **C5 Safe-Fail** | **100%** (4/4) | Unanswerable questions properly refused |
 
@@ -146,8 +146,8 @@ uv run python -m src.evaluation.evaluate --api-url http://127.0.0.1:8000 --outpu
    └───────────────────────────────────────┘  
                              │
                 ┌────────────▼──────────────┐
-                │  Ambiguity Detection      │
-                │  (score margin check)     │
+                │  Retrieval Validation      │
+                │  (relevance threshold)     │
                 └────────────┬──────────────┘
                              │
                 ┌────────────▼──────────────────────┐
@@ -216,24 +216,32 @@ uv run python -m src.evaluation.evaluate --api-url http://127.0.0.1:8000 --outpu
 
 ### Node & Edge Structure
 
-**Nodes** (8 processing stages):
+**Nodes** (12 operational nodes supporting 8 conceptual stages):
 
 1. **summarize_history** — Extract conversation summary for context
 2. **rewrite_query** — Clarify ambiguous queries using conversation context
-3. **detect_query_type** — Identify meta-queries about conversation (NEW)
-4. **retrieve** — Search vector DB and fetch full evidence chunks
-5. **validate** — Check retrieval results for quality/ambiguity
-6. **generate** — Synthesize answer with LLM using evidence
-7. **verify** — Check answer is supported by evidence (grounding)
-8. **finish** — Format response with traces and metadata
+3. **clarify** — Interrupt point for clarification-required flows
+4. **detect_query_type** — Identify meta-queries about conversation
+5. **retrieve** — Search vector DB and fetch full evidence chunks
+6. **should_compress_context** — Route based on context size / limits
+7. **compress_context** — Compress verbose context when needed
+8. **validate** — Check retrieval results for quality
+9. **fallback_response** — Safe-fail response for limit/no-hit conditions
+10. **generate** — Synthesize answer with LLM using evidence
+11. **verify** — Check answer is supported by evidence (grounding)
+12. **finish** — Format response with traces and metadata
 
 **Conditional Edges**:
 
-- `rewrite_query` → `detect_query_type` (always)
+- `rewrite_query` → `clarify` or `detect_query_type` (conditional)
+- `clarify` → `rewrite_query` (resume loop)
 - `detect_query_type` → `finish` (conversation meta-query detected)
 - `detect_query_type` → `retrieve` (document query: continue)
-- `validate` → `generate` (results valid: proceed)
-- `validate` → `fallback` (no results: safe-fail)
+- `retrieve` → `should_compress_context` (always)
+- `should_compress_context` → `compress_context` / `validate` / `fallback_response` (conditional)
+- `compress_context` → `validate` (always)
+- `fallback_response` → `finish` (always)
+- `validate` → `generate` (validation passed)
 - `verify` → `finish` (success or safe-fail)
 
 ### Error Handling & Retries
@@ -296,7 +304,7 @@ All stages emit events to trace store for observability.
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| **Pipeline** | `src/orchestration/pipeline.py` | LangGraph DAG orchestration (8-stage flow with conversation detection) |
+| **Pipeline** | `src/orchestration/pipeline.py` | LangGraph DAG orchestration (12 nodes, 8 conceptual stages, conversation detection) |
 | **Reasoner** | `src/services/reasoner.py` | Query/grounding/synthesis/conversation-detection LLM interface |
 | **Vector DB** | `src/db/vector_db.py` | Qdrant wrapper (hybrid search, indexing) |
 | **Upload Service** | `src/services/upload_service.py` | File handling (validation, conflict resolution) |
@@ -326,7 +334,8 @@ All stages emit events to trace store for observability.
 | `GET` | `/documents` | List indexed documents |
 | `DELETE` | `/documents/{filename}` | Delete document |
 | `DELETE` | `/documents` | Delete all documents |
-| `GET` | `/traces/{trace_id}` | Retrieve execution trace |
+| `GET` | `/trace/{trace_id}` | Retrieve execution trace |
+| `GET` | `/traces` | List recent execution traces |
 
 ---
 
@@ -343,7 +352,6 @@ uv sync
 cp .env.example .env
 
 # Configure environment:
-# - AGENTIC_RAG_LLM_PROVIDER=bedrock (or openai, ollama)
 # - AGENTIC_RAG_EMBEDDING_PROVIDER=ollama (or bedrock, openai)
 # - AWS credentials for Bedrock (if used)
 ```
@@ -357,7 +365,7 @@ ollama serve
 
 # Terminal 2: Start API server
 cd backend
-uv run python api/main.py
+uv run uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 # Server runs on http://127.0.0.1:8000
 
 # Terminal 3: Start Frontend (optional)
@@ -377,7 +385,7 @@ curl http://127.0.0.1:8000/health
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/upload" \
-  -F "file=@documents/research-paper.pdf" \
+  -F "file=@docs/research-paper.pdf" \
   -F "conflict_policy=ask"
 ```
 
@@ -412,7 +420,7 @@ Response:
 cd backend
 
 # Start API (in separate terminal)
-uv run python api/main.py
+uv run uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 
 # Run evaluation (30 questions across 7 categories)
 uv run python -m src.evaluation.evaluate \
@@ -605,7 +613,7 @@ All prompts are externalized for easy iteration and A/B testing.
 - **Dense search**: LLM-generated embeddings (semantic meaning)
 - **Sparse search**: BM25 keyword matching (lexical precision)
 - **Fusion**: Weighted score combining both (configurable weights)
-- **Ambiguity detection**: If top 2 chunks have similar scores, mark as ambiguous
+- **Relevance gating**: Use minimum relevance threshold to reject weak retrieval hits
 
 ### Conversation Meta-Query Detection
 
@@ -670,7 +678,7 @@ pip install qdrant-client
 ollama serve
 
 # Clear corrupted DB
-rm -rf backend/.qdrant
+rm -rf backend/.data/qdrant
 ```
 
 ### Evaluation scores are low
@@ -687,7 +695,7 @@ rm -rf backend/.qdrant
 export AGENTIC_RAG_UPLOAD_MAX_FILE_SIZE_MB=50
 
 # Restart API
-uv run python api/main.py
+uv run uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ---

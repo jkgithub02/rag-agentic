@@ -8,9 +8,7 @@ docs/
 # Local configuration
 .env
 
-# Generated data and reports
 .data/
-reports/
 
 # Tool caches
 .pytest_cache/

@@ -1,0 +1,319 @@
+[
+  {
+    "id": "C1-001",
+    "category": "straightforward_factual",
+    "query": "What problem does the Transformer architecture solve?",
+    "reference": "Transformer removes recurrence/convolutions from sequence modeling and uses attention to improve parallelization while modeling long-range dependencies.",
+    "expected_sources": [
+      "Attention is all you need.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C1-002",
+    "category": "straightforward_factual",
+    "query": "How many attention heads does the base Transformer model use?",
+    "reference": "The base Transformer uses 8 attention heads.",
+    "expected_sources": [
+      "Attention is all you need.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C1-003",
+    "category": "straightforward_factual",
+    "query": "What optimizer was used to train the Transformer?",
+    "reference": "Transformer was trained with Adam optimizer with a custom learning-rate schedule.",
+    "expected_sources": [
+      "Attention is all you need.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C1-004",
+    "category": "straightforward_factual",
+    "query": "What are the two tasks BERT is pretrained on?",
+    "reference": "BERT pretraining uses masked language modeling and next sentence prediction.",
+    "expected_sources": [
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C1-005",
+    "category": "straightforward_factual",
+    "query": "What is the difference between BERT Base and BERT Large?",
+    "reference": "BERT Base has fewer layers/hidden size/heads than BERT Large (Base: 12 layers, 768 hidden, 12 heads; Large: 24 layers, 1024 hidden, 16 heads).",
+    "expected_sources": [
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C1-006",
+    "category": "straightforward_factual",
+    "query": "What does the [CLS] token represent in BERT?",
+    "reference": "[CLS] is the aggregate sequence representation token used for classification tasks.",
+    "expected_sources": [
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C1-007",
+    "category": "straightforward_factual",
+    "query": "What two components make up the RAG model?",
+    "reference": "RAG combines a retriever and a generator (seq2seq language model).",
+    "expected_sources": [
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C1-008",
+    "category": "straightforward_factual",
+    "query": "What dataset was used to evaluate RAG?",
+    "reference": "RAG was evaluated on open-domain QA benchmarks including Natural Questions, WebQuestions, CuratedTREC, and TriviaQA.",
+    "expected_sources": [
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C1-009",
+    "category": "straightforward_factual",
+    "query": "What is the difference between RAG-Sequence and RAG-Token?",
+    "reference": "RAG-Sequence conditions generation on one retrieved set for the whole sequence, while RAG-Token allows token-level changes in retrieved passages.",
+    "expected_sources": [
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C2-001",
+    "category": "precise_attribution",
+    "query": "What is the scaled dot-product formula used in attention?",
+    "reference": null,
+    "expected_sources": [
+      "Attention is all you need.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C2-002",
+    "category": "precise_attribution",
+    "query": "What is DPR and which paper uses it?",
+    "reference": null,
+    "expected_sources": [
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C2-003",
+    "category": "precise_attribution",
+    "query": "What is the next sentence prediction task?",
+    "reference": null,
+    "expected_sources": [
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C2-004",
+    "category": "precise_attribution",
+    "query": "What is the role of the decoder in the original sequence-to-sequence model?",
+    "reference": null,
+    "expected_sources": [
+      "Attention is all you need.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C3-001",
+    "category": "cross_document_confusion",
+    "query": "How is attention used in BERT vs the original Transformer?",
+    "reference": null,
+    "expected_sources": [
+      "Attention is all you need.pdf",
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C3-002",
+    "category": "cross_document_confusion",
+    "query": "How does each paper handle tokenization?",
+    "reference": null,
+    "expected_sources": [
+      "Attention is all you need.pdf",
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C3-003",
+    "category": "cross_document_confusion",
+    "query": "What role does the encoder play across these three papers?",
+    "reference": null,
+    "expected_sources": [
+      "Attention is all you need.pdf",
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C4-001",
+    "category": "inference_grounding",
+    "query": "Why did the authors of the Transformer paper remove recurrence?",
+    "reference": null,
+    "expected_sources": [
+      "Attention is all you need.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C4-002",
+    "category": "inference_grounding",
+    "query": "What limitation of traditional language models does BERT address?",
+    "reference": null,
+    "expected_sources": [
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C4-003",
+    "category": "inference_grounding",
+    "query": "In what scenario would RAG-Token outperform RAG-Sequence?",
+    "reference": null,
+    "expected_sources": [
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C5-001",
+    "category": "safe_fail_unanswerable",
+    "query": "What GPU was used to train BERT?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": true,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C5-002",
+    "category": "safe_fail_unanswerable",
+    "query": "Who peer-reviewed the Transformer paper?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": true,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C5-003",
+    "category": "safe_fail_unanswerable",
+    "query": "What is GPT-4's architecture?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": true,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C5-004",
+    "category": "safe_fail_unanswerable",
+    "query": "How does BERT perform on Malaysian language tasks?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": true,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C6-001",
+    "category": "ambiguous_rewrite",
+    "query": "Tell me about attention",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": false,
+    "expect_rewrite": true
+  },
+  {
+    "id": "C6-002",
+    "category": "ambiguous_rewrite",
+    "query": "How does it handle context?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": false,
+    "expect_rewrite": true
+  },
+  {
+    "id": "C6-003",
+    "category": "ambiguous_rewrite",
+    "query": "What's the training trick they use?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": false,
+    "expect_rewrite": true
+  },
+  {
+    "id": "C6-004",
+    "category": "ambiguous_rewrite",
+    "query": "Compare the models",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": false,
+    "expect_rewrite": true
+  },
+  {
+    "id": "C7-001",
+    "category": "semantic_mismatch",
+    "query": "How does the model learn word relationships?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C7-002",
+    "category": "semantic_mismatch",
+    "query": "What self-supervised objective is used?",
+    "reference": null,
+    "expected_sources": [
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C7-003",
+    "category": "semantic_mismatch",
+    "query": "How is context aggregated?",
+    "reference": null,
+    "expected_sources": [
+      "Attention is all you need.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  }
+]
