@@ -79,7 +79,7 @@ uv run python -m src.evaluation.evaluate --api-url http://127.0.0.1:8000 --outpu
 - ✅ **Full observability**: Every step traced with evidence, citations, and reasoning
 - ✅ **Production API**: FastAPI with streaming responses and conflict resolution
 - ✅ **Comprehensive evaluation**: 30-question RAGAS test suite across 7 categories
-- ✅ **Standardized test suite**: 12 core test files with 100+ assertions
+- ✅ **Standardized test suite**: 12 core test files covering backend, API, retrieval, orchestration, and evaluation
 
 
 ---
@@ -114,71 +114,39 @@ uv run python -m src.evaluation.evaluate --api-url http://127.0.0.1:8000 --outpu
 
 ### High-Level Flow
 
+
+```mermaid
+flowchart TD
+  start([User query / thread]) --> summarize[summarize_history]
+  summarize --> rewrite[rewrite_query]
+  rewrite -->|clarify_needed| clarify[clarify]
+  rewrite -->|clear| detect[detect_query_type]
+  clarify --> rewrite
+  detect -->|meta-query| finish_meta[finish]
+  detect -->|document query| retrieve[retrieve]
+  retrieve --> compress_check[should_compress_context]
+  compress_check -->|compress_needed| compress[compress_context]
+  compress_check -->|validate| validate[validate]
+  compress_check -->|limit_exceeded| fallback[fallback_response]
+  compress --> validate
+  fallback --> finish[finish]
+  validate --> generate[generate]
+  generate --> verify[verify]
+  verify --> finish
+
+  finish_meta --> finish
+
+  classDef decision fill:#eef2ff,stroke:#4f46e5,color:#111827;
+  classDef action fill:#ecfeff,stroke:#0891b2,color:#111827;
+  classDef terminal fill:#fef3c7,stroke:#d97706,color:#111827;
+
+  class summarize,rewrite,clarify,detect,retrieve,compress_check,compress,validate,generate,verify action;
+  class finish_meta,fallback,finish terminal;
+  class rewrite,detect,compress_check decision;
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         User Query (Thread)                         │
-└────────────────────────────┬────────────────────────────────────────┘
-                             │
-                ┌────────────▼────────────┐
-                │  Query Analysis         │
-                │  (clarify if needed)    │
-                └────────────┬────────────┘
-                             │
-                ┌────────────▼──────────────────────┐
-                │  Detect Query Type                │
-                │  (document vs conversation meta)  │
-                └────────────┬──────────────────────┘
-                             │
-            ┌────────────────┴─────────────────┐
-            │                                  │
-       ┌────▼─────┐             ┌─────────────▼───────────┐
-       │Document  │             │ Conversation Meta-Query │
-       │Query     │             │ (Answer from history)   │
-       └────┬─────┘             └──────────────┬──────────┘
-            │                                  │
-            ├──────────────────────────────────┤
-            │                                  ▼
-   ┌────────▼────────────────────────────-─┐  │ Answer → Finish	|							   |
-   │  Vector Retrieval (Hybrid)            │  
-   │  Dense: LLM embeddings                │  
-   │  Sparse: BM25 keyword match           │  
-   │  Fusion: Weighted score               │  
-   └───────────────────────────────────────┘  
-                             │
-                ┌────────────▼──────────────┐
-                │  Retrieval Validation      │
-                │  (relevance threshold)     │
-                └────────────┬──────────────┘
-                             │
-                ┌────────────▼──────────────────────┐
-                │  Evidence Hydration               │
-                │  Fetch full chunk content         │
-                │  Prepare for grounding            │
-                └────────────┬──────────────────────┘
-                             │
-                ┌────────────▼──────────────┐
-                │  Answer Generation        │
-                │  (LLM synthesis)          │
-                │  + Citation tracking      │
-                └────────────┬──────────────┘
-                             │
-                ┌────────────▼──────────────────┐
-                │  Grounding Verification       │
-                │  Check if answer supported    │
-                │  by cited evidence            │
-                └────────────┬──────────────────┘
-                             │
-            ┌────────────────┴────────────────┐
-            │                                 │
-      ┌─────▼─────┐                    ┌─────▼──────┐
-      │  Grounded │                    │ Ungrounded │
-      │  (Answer) │                    │ (Safe-Fail)│
-      └──────┬────┘                    └─────┬──────┘
-             │                               │
-   ┌─────────▼────────────────────────────────▼────────┐
-   │  Return Response (citations + trace info)         │
-   └───────────────────────────────────────────────────┘
-```
+
+The diagram above matches the actual LangGraph wiring in [backend/src/orchestration/graph.py](backend/src/orchestration/graph.py) and the routing logic in [backend/src/orchestration/edges.py](backend/src/orchestration/edges.py). The `clarify` branch is interrupted before execution, `should_compress_context` gates compression versus fallback, and `detect_query_type` can route directly to `finish` for conversation meta-queries.
+
 
 ### Component Relationship Diagram
 
@@ -318,10 +286,10 @@ All stages emit events to trace store for observability.
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| **Chat Interface** | `frontend/src/features/chat/` | Query input, streaming responses |
-| **Upload Tab** | `frontend/src/features/upload/` | File upload with conflict dialog |
-| **Knowledge Base** | `frontend/src/features/knowledge/` | Document list & deletion |
-| **API Client** | `frontend/src/lib/api-client.ts` | HTTP client for backend API |
+| **Chat Interface** | `frontend/src/features/chat/` | Query input, streaming responses, citation rendering, trace fetches, local history |
+| **Upload Tab** | `frontend/src/features/upload/` | File upload, conflict dialog, replace/keep-both flows |
+| **Knowledge Base** | `frontend/src/features/knowledge/` | Document list, filename filter, delete one, clear all |
+| **API Client** | `frontend/src/lib/api-client.ts` | HTTP client, SSE parsing, traces, documents, health checks |
 
 ### API Endpoints
 
@@ -336,6 +304,74 @@ All stages emit events to trace store for observability.
 | `DELETE` | `/documents` | Delete all documents |
 | `GET` | `/trace/{trace_id}` | Retrieve execution trace |
 | `GET` | `/traces` | List recent execution traces |
+
+---
+
+## End-to-End Workflows
+
+### Document Ingestion
+
+1. A file is uploaded through `POST /upload` or the frontend Upload tab.
+2. `UploadService` validates file type and size.
+3. Conflict handling uses `ask`, `replace`, or `keep_both`.
+4. The file is chunked and indexed into Qdrant under the configured collection.
+5. The Knowledge Base tab refreshes from `GET /documents`.
+
+### Question Answering
+
+1. The Chat tab sends a query through `POST /ask` or `POST /ask/stream`.
+2. The pipeline summarizes thread history and rewrites the query when needed.
+3. The graph routes either to conversation-history answering or document retrieval.
+4. Retrieved chunks can be compressed if the evidence set is too large.
+5. The model generates an answer, attaches citations, and runs grounding verification.
+6. The final response is returned with `safe_fail`, citations, and a `trace_id`.
+
+### Follow-Up Conversation
+
+1. The client passes `thread_id` with each request.
+2. The backend loads persisted thread history from `backend/.data/thread_history/`.
+3. The `summarize_history` and `rewrite_query` nodes use that context to resolve follow-ups.
+4. Only the last 12 turns are retained per thread.
+
+### Observability
+
+1. Every major pipeline stage emits trace events.
+2. Traces are persisted under `backend/.data/traces/`.
+3. `GET /trace/{trace_id}` returns a single run.
+4. `GET /traces` lists recent runs for debugging and demo review.
+
+### Evaluation And QA
+
+1. The RAGAS runner executes 30 questions across 7 categories.
+2. The report is written to `backend/reports/ragas_report.json`.
+3. The test suite verifies query rewriting, retrieval, grounding, upload behavior, and API contracts.
+
+---
+
+## Configuration
+
+Backend settings live in `backend/src/core/config.py` and load from `backend/.env`.
+
+| Setting | Purpose | Default |
+|---------|---------|---------|
+| `AGENTIC_RAG_BEDROCK_CHAT_MODEL_ID` | Chat model used for reasoning and synthesis | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `AGENTIC_RAG_EMBEDDING_PROVIDER` | Embedding backend | `ollama` |
+| `AGENTIC_RAG_OLLAMA_BASE_URL` | Ollama endpoint for embeddings | `http://localhost:11434` |
+| `AGENTIC_RAG_OLLAMA_EMBEDDING_MODEL` | Embedding model name | `mxbai-embed-large` |
+| `AGENTIC_RAG_RETRIEVAL_TOP_K` | Initial retrieval fan-out | `4` |
+| `AGENTIC_RAG_RETRIEVAL_MODE` | Dense, sparse, or hybrid retrieval | `hybrid` |
+| `AGENTIC_RAG_RETRIEVAL_DENSE_WEIGHT` | Dense component weight | `0.65` |
+| `AGENTIC_RAG_RETRIEVAL_SPARSE_WEIGHT` | Sparse component weight | `0.35` |
+| `AGENTIC_RAG_CONTEXT_COMPRESSION_BASE_THRESHOLD` | Context compression gate | `2000` |
+| `AGENTIC_RAG_CONTEXT_COMPRESSION_GROWTH_FACTOR` | Compression gate growth factor | `0.9` |
+| `AGENTIC_RAG_MIN_RELEVANCE_SCORE` | Minimum hit score before validation fails | `0.05` |
+| `AGENTIC_RAG_AMBIGUITY_MARGIN` | Reserved ambiguity threshold | `0.005` |
+
+The backend stores runtime data in `backend/.data/`:
+
+- `backend/.data/qdrant/` for the local vector store
+- `backend/.data/traces/` for persisted pipeline traces
+- `backend/.data/thread_history/` for conversation memory
 
 ---
 
@@ -385,7 +421,7 @@ curl http://127.0.0.1:8000/health
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/upload" \
-  -F "file=@docs/research-paper.pdf" \
+  -F "file=@docs/Attention is all you need.pdf" \
   -F "conflict_policy=ask"
 ```
 
@@ -532,7 +568,7 @@ uv run pytest tests/test_evaluation_ragas.py::test_question_bank_covers_all_requ
 
 ### Test Suite Organization
 
-The test suite contains **12 standardized test files** with **100+ assertions**:
+The test suite contains **12 standardized test files** with **87 test functions**:
 
 ```
 tests/
@@ -640,7 +676,7 @@ All prompts are externalized for easy iteration and A/B testing.
    - ✅ Composable: Same prompt logic can detect other query types (helpfulness, clarification-needed, etc.)
    - ✅ UX-friendly: Faster responses, feels more "alive"
 
-### File Organization
+### Repository Layout
 
 ```
 agentic-RAG/
@@ -654,6 +690,8 @@ agentic-RAG/
 │   │   └── orchestration/        # Pipeline DAG & nodes
 │   ├── tests/                    # Pytest suite (12 files)
 │   ├── reports/                  # RAGAS evaluation results
+│   ├── docs/                     # Indexed source documents
+│   ├── .data/                    # Qdrant, traces, thread history
 │   └── pyproject.toml            # Python dependencies
 ├── frontend/
 │   ├── src/
@@ -662,43 +700,8 @@ agentic-RAG/
 │   │   ├── features/             # Chat, upload, knowledge features
 │   │   └── lib/                  # API client, types
 │   └── package.json              # Node.js dependencies
-└── documents/                    # User-uploaded files
+└── README.md                     # Project overview and workflows
 ```
 
----
 
-## Troubleshooting
-
-### API won't start
-
-```bash
-# Check Qdrant availability
-pip install qdrant-client
-# Ensure embedding provider is running (Ollama)
-ollama serve
-
-# Clear corrupted DB
-rm -rf backend/.data/qdrant
-```
-
-### Evaluation scores are low
-
-1. Check evidence relevance: `curl http://localhost:8000/documents`
-2. Verify LLM is responding: Check traces in reports
-3. Review "faithfulness" failures: May indicate hallucination in generation
-4. Review "context_recall": May indicate weak retrieval
-
-### Upload file limits
-
-```bash
-# Increase max size (env var)
-export AGENTIC_RAG_UPLOAD_MAX_FILE_SIZE_MB=50
-
-# Restart API
-uv run uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
----
-
-
-**Last Updated**: April 18, 2026  
+**Last Updated**: April 19, 2026  
