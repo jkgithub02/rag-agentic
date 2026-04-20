@@ -24,6 +24,12 @@ class ResponseCategory(StrEnum):
     SAFE_FAIL = "safe_fail"
 
 
+class QueryComplexity(StrEnum):
+    SIMPLE = "simple"
+    MODERATE = "moderate"
+    COMPLEX = "complex"
+
+
 class EvidenceChunk(BaseModel):
     chunk_id: str
     source: str
@@ -49,11 +55,27 @@ class TraceEvent(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class AgentThought(BaseModel):
+    reasoning: str
+    recommended_action: str
+    confidence: float = 0.0
+
+
+class AgentObservation(BaseModel):
+    action: str
+    success: bool
+    quality_score: float = 0.0
+    message: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class PipelineTrace(BaseModel):
     trace_id: str = Field(default_factory=lambda: str(uuid4()))
     original_query: str
     rewritten_query: str
     final_grounding_status: GroundingStatus = GroundingStatus.UNSUPPORTED
+    agent_iterations_used: int = 0
+    agent_thought_count: int = 0
     events: list[TraceEvent] = Field(default_factory=list)
 
 

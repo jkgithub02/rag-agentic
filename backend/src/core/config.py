@@ -50,7 +50,16 @@ class Settings(BaseSettings):
     retrieval_sparse_weight: float = 0.35
     context_compression_base_threshold: int = 2000
     context_compression_growth_factor: float = 0.9
+    enable_agent_mode: bool = False
     agent_max_iterations: int = 10
+    agent_evidence_quality_threshold: float = 0.65
+    agent_tool_timeout_seconds: float = 2.0
+    enable_query_decomposition: bool = False
+    max_decomposition_depth: int = 3
+    web_search_enabled: bool = False
+    web_search_provider: str = "tavily"
+    web_search_api_key: str = ""
+    web_search_top_k: int = 3
     agent_max_tool_calls: int = 8
 
     min_relevance_score: float = 0.05
@@ -97,6 +106,10 @@ def get_settings() -> Settings:
     print(f"  • Retrieval Top K: {settings.retrieval_top_k}")
     print(f"  • Dense Weight: {settings.retrieval_dense_weight}")
     print(f"  • Sparse Weight: {settings.retrieval_sparse_weight}")
+    print(f"  • Agent Mode Enabled: {settings.enable_agent_mode}")
+    print(f"  • Agent Max Iterations: {settings.agent_max_iterations}")
+    print(f"  • Agent Quality Threshold: {settings.agent_evidence_quality_threshold}")
+    print(f"  • Web Search Enabled: {settings.web_search_enabled}")
     print("\n📦 Document Settings:")
     print(f"  • Chunk Size: {settings.chunk_size}")
     print(f"  • Chunk Overlap: {settings.chunk_overlap}")

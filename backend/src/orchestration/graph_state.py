@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from typing import TypedDict
 
-from src.core.models import EvidenceChunk, GroundingResult, PipelineTrace, ValidationResult
+from src.core.models import (
+    AgentObservation,
+    AgentThought,
+    EvidenceChunk,
+    GroundingResult,
+    PipelineTrace,
+    ValidationResult,
+)
 
 
 class PipelineState(TypedDict, total=False):
@@ -28,3 +35,8 @@ class PipelineState(TypedDict, total=False):
     grounding: GroundingResult
     trace: PipelineTrace
     chunks: list[EvidenceChunk]
+    agent_iterations: int
+    evidence_quality_score: float
+    agent_thoughts: list[AgentThought]
+    agent_observations: list[AgentObservation]
+    selected_action: str
