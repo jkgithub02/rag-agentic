@@ -50,6 +50,7 @@ def answer_prompt(*, query: str, evidence: str) -> str:
         "Answer the query from the provided evidence in 1-3 concise sentences. "
         "Be helpful, direct, and confident. Only refuse if evidence is completely absent or irrelevant. "
         "When relevant evidence exists, provide an answer even if partial or requiring reasonable inference. "
+        "When evidence spans multiple sources, cite every source used. "
         "Always cite specific source chunks: explicitly mention chunk_ids like [chunk_id_0012] or similar. "
         "Do NOT use hedging like 'I do not have sufficient evidence' if you have any relevant evidence. "
         "Do NOT apologize or express uncertainty in the answer text itself. "
@@ -109,5 +110,53 @@ def conversation_query_detection_prompt(*, query: str) -> str:
         '  "confidence": number (0.0-1.0),\n'
         f'  "prompt_version": "{PROMPT_VERSION}"\n'
         "}\n"
+        f"User query: {query}"
+    )
+
+
+def query_complexity_prompt(*, query: str, conversation_summary: str | None = None) -> str:
+    summary_block = (
+        f"Conversation summary:\n{conversation_summary}\n"
+        if conversation_summary and conversation_summary.strip()
+        else "Conversation summary:\n(none)\n"
+    )
+    return (
+        "Classify the retrieval complexity of the user query for routing in an agentic RAG system. "
+        "Return one label from: simple, moderate, complex.\n"
+        "Label guidance:\n"
+        "- simple: direct factual lookup likely solved in one retrieval pass.\n"
+        "- moderate: explanation/summarization/why-how style queries that may need richer evidence.\n"
+        "- complex: comparison, tradeoff, multi-part, or synthesis-heavy queries likely needing iterative steps.\n"
+        "Output only valid JSON with keys: query_complexity, confidence, prompt_version.\n"
+        "confidence must be a number from 0.0 to 1.0.\n"
+        f"Prompt version: {PROMPT_VERSION}\n"
+        f"{summary_block}"
+        f"User query: {query}"
+    )
+
+
+def query_decomposition_prompt(
+    *,
+    query: str,
+    conversation_summary: str | None = None,
+    max_subqueries: int = 3,
+) -> str:
+    summary_block = (
+        f"Conversation summary:\n{conversation_summary}\n"
+        if conversation_summary and conversation_summary.strip()
+        else "Conversation summary:\n(none)\n"
+    )
+    return (
+        "Decompose the user query into retrieval-focused sub-queries. "
+        "Each sub-query should be concise, self-contained, and directly searchable in documents.\n"
+        "Rules:\n"
+        f"- Return at most {max_subqueries} sub-queries.\n"
+        "- Preserve the original intent and key entities.\n"
+        "- Do not invent external facts.\n"
+        "- If decomposition is unnecessary, return exactly one query close to the original.\n"
+        "Output only valid JSON with keys: sub_queries, prompt_version.\n"
+        "sub_queries must be a JSON array of non-empty strings.\n"
+        f"Prompt version: {PROMPT_VERSION}\n"
+        f"{summary_block}"
         f"User query: {query}"
     )

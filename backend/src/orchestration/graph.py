@@ -24,6 +24,7 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
     graph.add_node("summarize_history", nodes.summarize_history)
     graph.add_node("rewrite_query", nodes.rewrite_query)
     graph.add_node("detect_query_type", nodes.detect_query_type)
+    graph.add_node("prepare_decomposition", nodes.prepare_decomposition)
     graph.add_node("agent_initialize", nodes.agent_initialize)
     graph.add_node("agent_think", nodes.agent_think)
     graph.add_node("agent_act", nodes.agent_act)
@@ -50,9 +51,18 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
         "detect_query_type",
         edges.route_after_detect_query_type,
         {
+            "prepare_decomposition": "prepare_decomposition",
             "agent_initialize": "agent_initialize",
             "retrieve": "retrieve",
             "finish": "finish",
+        },
+    )
+    graph.add_conditional_edges(
+        "prepare_decomposition",
+        edges.route_after_prepare_decomposition,
+        {
+            "agent_initialize": "agent_initialize",
+            "retrieve": "retrieve",
         },
     )
     graph.add_edge("agent_initialize", "agent_think")

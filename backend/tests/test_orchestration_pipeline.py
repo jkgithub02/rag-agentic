@@ -17,6 +17,7 @@ from src.core.models import (
     GroundingResult,
     GroundingStatus,
     PipelineTrace,
+    QueryComplexity,
     QueryAnalysisOutput,
 )
 from src.orchestration.pipeline import AgenticPipeline
@@ -129,6 +130,37 @@ class ComparisonReasoner(FakeReasoner):
             ),
             "llm",
         )
+
+
+class DecomposingReasoner(FakeReasoner):
+    def detect_query_complexity(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> QueryComplexity:
+        del query, conversation_summary
+        return QueryComplexity.COMPLEX
+
+    def decompose_query_lightly(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> list[str]:
+        del query, conversation_summary
+        return ["What is BERT architecture?", "What is BERT pretraining?"]
+
+
+class SimpleComplexityReasoner(FakeReasoner):
+    def detect_query_complexity(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> QueryComplexity:
+        del query, conversation_summary
+        return QueryComplexity.SIMPLE
 
 
 class QueryCaptureTools:
@@ -905,7 +937,7 @@ def test_agent_mode_routes_through_agent_loop() -> None:
         reasoner=FakeReasoner(),
     )
 
-    response = pipeline.ask("What is BERT pretraining?")
+    response = pipeline.ask("Compare BERT vs Transformer")
     trace = trace_store.get(response.trace_id)
 
     assert trace is not None
@@ -915,6 +947,33 @@ def test_agent_mode_routes_through_agent_loop() -> None:
     assert "agent_act" in stages
     assert "agent_reflect" in stages
     assert trace.agent_iterations_used >= 1
+
+
+def test_agent_mode_simple_query_bypasses_agent_loop() -> None:
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        ambiguity_margin=0.03,
+        enable_agent_mode=True,
+        agent_max_iterations=2,
+        agent_evidence_quality_threshold=0.5,
+    )
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=SimpleComplexityReasoner(),
+    )
+
+    response = pipeline.ask("What is BERT pretraining?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    stages = [event.stage for event in trace.events]
+    assert "agent_initialize" not in stages
+    assert "retrieve" in stages
 
 
 def test_refusal_like_answer_forces_safe_fail() -> None:
@@ -1120,6 +1179,34 @@ def test_multi_question_rewrite_fans_out_retrieval_queries() -> None:
 
     search_events = [event for event in trace.events if event.stage == "tool_search_chunks"]
     assert len(search_events) == 2
+
+
+def test_complex_query_decomposition_fans_out_retrieval_when_enabled() -> None:
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        ambiguity_margin=0.03,
+        enable_query_decomposition=True,
+    )
+    trace_store = TraceStore()
+    tools = MultiQueryTools()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=tools,
+        trace_store=trace_store,
+        reasoner=DecomposingReasoner(),
+    )
+
+    response = pipeline.ask("Explain BERT deeply")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is False
+    assert tools.search_queries == ["What is BERT architecture?", "What is BERT pretraining?"]
+    prep_events = [event for event in trace.events if event.stage == "prepare_decomposition"]
+    assert len(prep_events) == 1
+    assert prep_events[0].payload["applied"] is True
 
 
 def test_comparison_query_uses_rewrite_driven_single_search() -> None:

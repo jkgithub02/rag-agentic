@@ -9,16 +9,21 @@ class PipelineEdges:
         self._settings = settings
 
     def route_after_rewrite(self, state: PipelineState) -> str:
-        if state.get("clarify_needed"):
-            return "clarify"
+        del state
         return "detect_query_type"
 
     def route_after_detect_query_type(self, state: PipelineState) -> str:
         """Route based on whether this is a conversation meta-query."""
         if state.get("is_conversation_query"):
             return "finish"
+        return "prepare_decomposition"
+
+    def route_after_prepare_decomposition(self, state: PipelineState) -> str:
+        """Route after optional decomposition based on complexity and agent mode."""
         if self._settings and self._settings.enable_agent_mode:
-            return "agent_initialize"
+            complexity = str(state.get("query_complexity", "moderate")).lower()
+            if complexity in {"moderate", "complex"}:
+                return "agent_initialize"
         return "retrieve"
 
     def route_agent_loop(self, state: PipelineState) -> str:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from src.core.config import Settings
-from src.core.models import EvidenceChunk, GroundingStatus
+from src.core.models import EvidenceChunk, GroundingStatus, QueryComplexity
 from src.services.reasoner import QueryReasoner
 
 
@@ -233,3 +233,64 @@ def test_assess_grounding_handles_malformed_json() -> None:
             citations=["chunk-001"],
             evidence=["Test evidence."],
         )
+
+
+def test_detect_query_complexity_uses_llm_output() -> None:
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient(
+            '{"query_complexity":"complex","confidence":0.91,"prompt_version":"v1.0.0"}'
+        ),
+    )
+
+    complexity = reasoner.detect_query_complexity(
+        query="Compare BERT versus Transformer with trade-offs",
+        conversation_summary="",
+    )
+
+    assert complexity == QueryComplexity.COMPLEX
+
+
+def test_detect_query_complexity_falls_back_when_llm_output_invalid() -> None:
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient('{"unexpected":"shape"}'),
+    )
+
+    complexity = reasoner.detect_query_complexity(
+        query="What is BERT?",
+        conversation_summary="",
+    )
+
+    # Falls back to neutral default when LLM payload is unusable.
+    assert complexity == QueryComplexity.MODERATE
+
+
+def test_decompose_query_lightly_uses_llm_output() -> None:
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient(
+            '{"sub_queries":["What is BERT architecture?","What is BERT pretraining?"],"prompt_version":"v1.0.0"}'
+        ),
+    )
+
+    sub_queries = reasoner.decompose_query_lightly(
+        query="Explain BERT architecture and pretraining",
+        conversation_summary="",
+    )
+
+    assert sub_queries == ["What is BERT architecture?", "What is BERT pretraining?"]
+
+
+def test_decompose_query_lightly_falls_back_on_invalid_payload() -> None:
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient('{"unexpected":"shape"}'),
+    )
+
+    sub_queries = reasoner.decompose_query_lightly(
+        query="Explain BERT architecture and pretraining",
+        conversation_summary="",
+    )
+
+    assert sub_queries == ["Explain BERT architecture and pretraining"]

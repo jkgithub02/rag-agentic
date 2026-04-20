@@ -35,6 +35,7 @@ class PipelineState(TypedDict, total=False):
     grounding: GroundingResult
     trace: PipelineTrace
     chunks: list[EvidenceChunk]
+    query_complexity: str
     agent_iterations: int
     evidence_quality_score: float
     agent_thoughts: list[AgentThought]

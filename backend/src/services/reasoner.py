@@ -9,11 +9,14 @@ from src.core.models import (
     EvidenceChunk,
     GroundingCheckOutput,
     GroundingResult,
+    QueryComplexity,
     QueryAnalysisOutput,
 )
 from src.core.prompts import (
     answer_prompt,
     conversation_summary_prompt,
+    query_decomposition_prompt,
+    query_complexity_prompt,
     grounding_prompt,
     query_analysis_prompt,
 )
@@ -292,3 +295,87 @@ class QueryReasoner:
         except Exception:
             # Default to document query on error
             return False, 0.0
+
+    def detect_query_complexity(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> QueryComplexity:
+        """LLM-driven complexity classifier used for smart routing."""
+        if not self._settings.reasoning_enabled:
+            return QueryComplexity.MODERATE
+
+        prompt = query_complexity_prompt(
+            query=query,
+            conversation_summary=conversation_summary,
+        )
+        try:
+            parsed = self._invoke_structured_raw(prompt)
+            raw_value = parsed.get("query_complexity", parsed.get("complexity"))
+            normalized = self._normalize_query_complexity(raw_value)
+            if normalized is not None:
+                return normalized
+        except Exception:
+            pass
+
+        return QueryComplexity.MODERATE
+
+    @staticmethod
+    def _normalize_query_complexity(value: object) -> QueryComplexity | None:
+        if not isinstance(value, str):
+            return None
+
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        mapping = {
+            "simple": QueryComplexity.SIMPLE,
+            "easy": QueryComplexity.SIMPLE,
+            "moderate": QueryComplexity.MODERATE,
+            "medium": QueryComplexity.MODERATE,
+            "complex": QueryComplexity.COMPLEX,
+            "hard": QueryComplexity.COMPLEX,
+        }
+        return mapping.get(normalized)
+
+    def decompose_query_lightly(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> list[str]:
+        """LLM-driven lightweight decomposition into searchable sub-queries."""
+        max_subqueries = max(1, int(self._settings.max_decomposition_depth))
+
+        if not self._settings.reasoning_enabled:
+            return [query.strip()]
+
+        prompt = query_decomposition_prompt(
+            query=query,
+            conversation_summary=conversation_summary,
+            max_subqueries=max_subqueries,
+        )
+        try:
+            parsed = self._invoke_structured_raw(prompt)
+            raw_items = parsed.get("sub_queries")
+            if not isinstance(raw_items, list):
+                return [query.strip()]
+
+            cleaned: list[str] = []
+            seen_lower: set[str] = set()
+            for item in raw_items:
+                if not isinstance(item, str):
+                    continue
+                candidate = item.strip()
+                if not candidate:
+                    continue
+                lower = candidate.lower()
+                if lower in seen_lower:
+                    continue
+                seen_lower.add(lower)
+                cleaned.append(candidate)
+                if len(cleaned) >= max_subqueries:
+                    break
+
+            return cleaned or [query.strip()]
+        except Exception:
+            return [query.strip()]

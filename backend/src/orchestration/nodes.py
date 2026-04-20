@@ -9,6 +9,7 @@ from src.core.models import (
     GroundingResult,
     GroundingStatus,
     PipelineTrace,
+    QueryComplexity,
     TraceEvent,
     ValidationResult,
     ValidationStatus,
@@ -120,9 +121,30 @@ class PipelineNodes:
         rewritten_query = state.get("rewritten_query", "")
         conversation_summary = state.get("conversation_summary", "")
         history = state.get("history", [])
-        
-        is_conversation_query, confidence = self._reasoner.detect_conversation_query(
-            query=rewritten_query
+
+        detect_conv = getattr(self._reasoner, "detect_conversation_query", None)
+        if callable(detect_conv):
+            try:
+                is_conversation_query, confidence = detect_conv(query=rewritten_query)
+            except Exception:
+                is_conversation_query, confidence = (False, 0.0)
+        else:
+            is_conversation_query, confidence = (False, 0.0)
+
+        detect_complexity = getattr(self._reasoner, "detect_query_complexity", None)
+        if callable(detect_complexity):
+            try:
+                query_complexity = detect_complexity(
+                    query=rewritten_query,
+                    conversation_summary=conversation_summary,
+                )
+            except Exception:
+                query_complexity = QueryComplexity.MODERATE
+        else:
+            query_complexity = QueryComplexity.MODERATE
+
+        complexity_value = (
+            query_complexity.value if isinstance(query_complexity, QueryComplexity) else str(query_complexity)
         )
         
         self._event(
@@ -132,12 +154,17 @@ class PipelineNodes:
                 "is_conversation_query": is_conversation_query,
                 "confidence": confidence,
                 "rewritten_query": rewritten_query,
+                "query_complexity": complexity_value,
             },
         )
         
         # Threshold: 0.5 (more lenient) - prefer conversation interpretation if uncertain
         if not is_conversation_query or confidence < 0.5:
-            return {"is_conversation_query": False, "trace": trace}
+            return {
+                "is_conversation_query": False,
+                "query_complexity": complexity_value,
+                "trace": trace,
+            }
         
         # This IS a conversation query - answer from history
         # Even with minimal history, provide the best answer we can
@@ -189,12 +216,87 @@ class PipelineNodes:
         
         return {
             "is_conversation_query": True,
+            "query_complexity": complexity_value,
             "answer": answer,
             "citations": [],
             "safe_fail": False,
             "grounding": grounding,
             "trace": trace,
         }
+
+    def prepare_decomposition(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        rewritten_query = state.get("rewritten_query", "")
+        rewritten_queries = state.get("rewritten_queries") or [rewritten_query]
+        complexity = str(state.get("query_complexity", "moderate")).lower()
+
+        should_decompose = (
+            self._settings.enable_query_decomposition
+            and complexity == "complex"
+            and bool(rewritten_query.strip())
+        )
+
+        if not should_decompose:
+            self._event(
+                trace,
+                "prepare_decomposition",
+                {"applied": False, "reason": "disabled-or-not-complex", "query_count": len(rewritten_queries)},
+            )
+            return {"rewritten_queries": rewritten_queries, "trace": trace}
+
+        decompose = getattr(self._reasoner, "decompose_query_lightly", None)
+        if not callable(decompose):
+            self._event(
+                trace,
+                "prepare_decomposition",
+                {"applied": False, "reason": "reasoner-missing-method", "query_count": len(rewritten_queries)},
+            )
+            return {"rewritten_queries": rewritten_queries, "trace": trace}
+
+        try:
+            sub_queries = decompose(
+                query=rewritten_query,
+                conversation_summary=state.get("conversation_summary"),
+            )
+        except Exception as exc:
+            self._event(
+                trace,
+                "prepare_decomposition",
+                {
+                    "applied": False,
+                    "reason": "decomposition-error",
+                    "error": str(exc),
+                    "query_count": len(rewritten_queries),
+                },
+            )
+            return {"rewritten_queries": rewritten_queries, "trace": trace}
+
+        cleaned: list[str] = []
+        seen_lower: set[str] = set()
+        for item in sub_queries:
+            if not isinstance(item, str):
+                continue
+            candidate = item.strip()
+            if not candidate:
+                continue
+            key = candidate.lower()
+            if key in seen_lower:
+                continue
+            seen_lower.add(key)
+            cleaned.append(candidate)
+
+        next_queries = cleaned or rewritten_queries
+        self._event(
+            trace,
+            "prepare_decomposition",
+            {
+                "applied": bool(cleaned),
+                "original_query": rewritten_query,
+                "query_count": len(next_queries),
+                "queries": next_queries,
+            },
+        )
+        return {"rewritten_queries": next_queries, "trace": trace}
 
     def agent_initialize(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
