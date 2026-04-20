@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
+import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from langchain_aws import ChatBedrock
 
 from src.core.config import Settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class LLMInvocationError(RuntimeError):
@@ -23,6 +28,23 @@ class BedrockChatClient:
             model_id=settings.bedrock_chat_model_id,
             model_kwargs={"temperature": settings.reasoning_temperature},
         )
+        self._log_caller_identity()
+
+    def _log_caller_identity(self) -> None:
+        """Log resolved AWS identity metadata used for Bedrock calls."""
+        try:
+            sts = boto3.client("sts", region_name=self._settings.aws_region)
+            identity = sts.get_caller_identity()
+            logger.info(
+                "Bedrock AWS identity resolved | account=%s arn=%s user_id=%s region=%s model=%s",
+                identity.get("Account", "unknown"),
+                identity.get("Arn", "unknown"),
+                identity.get("UserId", "unknown"),
+                self._settings.aws_region,
+                self._settings.bedrock_chat_model_id,
+            )
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Unable to resolve AWS caller identity for Bedrock: %s", exc)
 
     @staticmethod
     def _message_text(message: Any) -> str:
