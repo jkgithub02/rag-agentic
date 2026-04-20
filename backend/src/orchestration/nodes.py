@@ -3,6 +3,8 @@ from __future__ import annotations
 from src.agent.tools import AgentTools
 from src.core.config import Settings
 from src.core.models import (
+    AgentObservation,
+    AgentThought,
     EvidenceChunk,
     GroundingResult,
     GroundingStatus,
@@ -193,6 +195,103 @@ class PipelineNodes:
             "grounding": grounding,
             "trace": trace,
         }
+
+    def agent_initialize(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        self._event(
+            trace,
+            "agent_initialize",
+            {"mode": "enabled", "max_iterations": self._settings.agent_max_iterations},
+        )
+        return {
+            "agent_iterations": 0,
+            "evidence_quality_score": 0.0,
+            "agent_thoughts": [],
+            "agent_observations": [],
+            "selected_action": "search_documents",
+            "trace": trace,
+        }
+
+    def agent_think(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        agent_iterations = state.get("agent_iterations", 0) + 1
+        thought = AgentThought(
+            reasoning="Gather or improve evidence quality using document search.",
+            recommended_action="search_documents",
+            confidence=0.6,
+        )
+        thoughts = [*state.get("agent_thoughts", []), thought]
+        self._event(
+            trace,
+            "agent_think",
+            {
+                "iteration": agent_iterations,
+                "selected_action": thought.recommended_action,
+                "confidence": thought.confidence,
+            },
+        )
+        return {
+            "agent_iterations": agent_iterations,
+            "selected_action": thought.recommended_action,
+            "agent_thoughts": thoughts,
+            "trace": trace,
+        }
+
+    def agent_act(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        selected_action = state.get("selected_action", "search_documents")
+
+        if selected_action == "search_documents":
+            retrieval_update = self.retrieve(state)
+            chunks = retrieval_update.get("chunks", [])
+            observation = AgentObservation(
+                action=selected_action,
+                success=True,
+                quality_score=0.0,
+                message=f"Retrieved {len(chunks)} chunk(s).",
+            )
+            observations = [*state.get("agent_observations", []), observation]
+            self._event(
+                trace,
+                "agent_act",
+                {"action": selected_action, "chunk_count": len(chunks)},
+            )
+            return {
+                **retrieval_update,
+                "agent_observations": observations,
+                "trace": trace,
+            }
+
+        observation = AgentObservation(
+            action=selected_action,
+            success=False,
+            quality_score=0.0,
+            message="Unsupported action.",
+        )
+        observations = [*state.get("agent_observations", []), observation]
+        self._event(trace, "agent_act", {"action": selected_action, "unsupported": True})
+        return {"agent_observations": observations, "trace": trace}
+
+    def agent_reflect(self, state: PipelineState) -> PipelineState:
+        trace = state["trace"]
+        chunks = state.get("chunks", [])
+        if not chunks:
+            quality_score = 0.0
+        else:
+            top_score = max(chunk.score for chunk in chunks)
+            avg_score = sum(chunk.score for chunk in chunks) / len(chunks)
+            quality_score = round((top_score * 0.7) + (avg_score * 0.3), 4)
+
+        self._event(
+            trace,
+            "agent_reflect",
+            {
+                "quality_score": quality_score,
+                "threshold": self._settings.agent_evidence_quality_threshold,
+                "agent_iterations": state.get("agent_iterations", 0),
+            },
+        )
+        return {"evidence_quality_score": quality_score, "trace": trace}
 
     def retrieve(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
@@ -481,6 +580,8 @@ class PipelineNodes:
     def finish(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         trace.final_grounding_status = state["grounding"].status
+        trace.agent_iterations_used = state.get("agent_iterations", 0)
+        trace.agent_thought_count = len(state.get("agent_thoughts", []))
         self._event(trace, "answer", {"safe_fail": state["safe_fail"]})
         return {"trace": trace}
 

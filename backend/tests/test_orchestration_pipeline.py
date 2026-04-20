@@ -887,6 +887,36 @@ def test_reasoner_grounding_supported_keeps_answer() -> None:
     assert verify_events[0].payload["grounding_source"] == "llm"
 
 
+def test_agent_mode_routes_through_agent_loop() -> None:
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        ambiguity_margin=0.03,
+        enable_agent_mode=True,
+        agent_max_iterations=2,
+        agent_evidence_quality_threshold=0.5,
+    )
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(),
+    )
+
+    response = pipeline.ask("What is BERT pretraining?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    stages = [event.stage for event in trace.events]
+    assert "agent_initialize" in stages
+    assert "agent_think" in stages
+    assert "agent_act" in stages
+    assert "agent_reflect" in stages
+    assert trace.agent_iterations_used >= 1
+
+
 def test_refusal_like_answer_forces_safe_fail() -> None:
     settings = _settings()
     trace_store = TraceStore()

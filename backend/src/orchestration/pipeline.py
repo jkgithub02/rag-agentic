@@ -34,7 +34,7 @@ class AgenticPipeline:
             tools=tools,
             reasoner=reasoner,
         )
-        self._edges = PipelineEdges()
+        self._edges = PipelineEdges(settings=settings)
         self._graph = build_pipeline_graph(nodes=self._nodes, edges=self._edges)
 
     def ask(self, query: str, *, thread_id: str | None = None) -> AskResponse:
