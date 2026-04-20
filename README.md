@@ -761,12 +761,6 @@ All prompts are externalized for easy iteration and A/B testing.
    - Gracefully handles: empty history, first interaction, synthesis errors
    - Rich answers: "Based on our conversation, you asked about..."
 
-4. **Why LLM-based (not pattern-matching)**:
-   - ✅ Handles varied phrasings: "What have we discussed?" vs "Recap our talk" vs "What topics did we cover?"
-   - ✅ Adaptive: LLM learns patterns without code changes
-   - ✅ Composable: Same prompt logic can detect other query types (helpfulness, clarification-needed, etc.)
-   - ✅ UX-friendly: Faster responses, feels more "alive"
-
 ### Repository Layout
 
 ```
@@ -799,7 +793,7 @@ agentic-RAG/
 
 ---
 
-## Recent Improvements (April 20, 2026)
+## Recent Improvements
 
 ### Agentic Enhancements
 - ✅ Implemented think-act-reflect agent loop with iterative retrieval planning
@@ -808,16 +802,4 @@ agentic-RAG/
 - ✅ Implemented refusal retry mechanism (reduced false safe-fails by 43%)
 - ✅ Added frontend pipeline visibility with real-time stage progress and detailed traces
 
-### Performance Gains
-- **Faithfulness**: 60.7% → 87.0% (+43%)
-- **Context Recall**: 79% → 90.7% (+15%)
-- **Answer Relevancy**: 67.2% → 70.4% (+5%)
-- **Test Coverage**: 30 questions → 36 questions across 9 categories
-- **Test Suite**: 87 tests → 113 tests
 
-### Key Commits
-- Web search gate prevents out-of-knowledge-base answers
-- Refusal retry with force_answer parameter eliminates false negatives
-- Heuristic decomposition for multi-part queries ("and how", "trace how", "compare")
-- SSE stage events for real-time pipeline visibility
-- PipelineProgressIndicator and PipelineTracePanel components
