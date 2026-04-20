@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 class FakeTools:
     """Generic tools mock that returns deterministic BERT-related chunks.
-    
+
     Useful for testing pipeline orchestration and question answering flow
     without depending on actual LLM or vector database.
     """
@@ -47,6 +47,10 @@ class FakeTools:
                     score=0.9,
                 )
             ]
+        return []
+
+    def web_search(self, query: str, *, settings: object = None) -> list[EvidenceChunk]:
+        del query, settings
         return []
 
 
@@ -94,8 +98,9 @@ class FakeReasoner:
         *,
         query: str,
         chunks: list[EvidenceChunk],
+        subqueries: list[str] | None = None,
     ) -> tuple[str, list[str], str, str | None]:
-        del query, chunks
+        del query, chunks, subqueries
         return self._synthesis_answer, self._synthesis_chunk_ids, "llm", "v1.0.0"
 
     def assess_query_clarity(

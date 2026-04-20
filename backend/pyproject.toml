@@ -18,6 +18,7 @@ dependencies = [
     "botocore[crt]>=1.42.82",
     "qdrant-client>=1.17.1",
     "python-multipart>=0.0.20",
+    "tavily-python>=0.7.23",
 ]
 
 [dependency-groups]

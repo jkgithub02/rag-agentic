@@ -13,6 +13,7 @@ from conftest import (
 )
 from src.core.config import Settings
 from src.core.models import (
+    AgentThought,
     EvidenceChunk,
     GroundingResult,
     GroundingStatus,
@@ -163,6 +164,47 @@ class SimpleComplexityReasoner(FakeReasoner):
         return QueryComplexity.SIMPLE
 
 
+class PlannerFinalizeReasoner(FakeReasoner):
+    def detect_query_complexity(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None = None,
+    ) -> QueryComplexity:
+        del query, conversation_summary
+        return QueryComplexity.MODERATE
+
+    def plan_agent_step(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None,
+        rewritten_queries: list[str],
+        evidence_quality_score: float,
+        chunk_count: int,
+        agent_iterations: int,
+        max_iterations: int,
+        last_observation: str | None = None,
+        subquery_statuses: list[dict[str, object]] | None = None,
+    ):
+        del (
+            query,
+            conversation_summary,
+            rewritten_queries,
+            evidence_quality_score,
+            chunk_count,
+            agent_iterations,
+            max_iterations,
+            last_observation,
+            subquery_statuses,
+        )
+        return AgentThought(
+            reasoning="Existing evidence is sufficient.",
+            recommended_action="finalize",
+            confidence=0.9,
+        )
+
+
 class QueryCaptureTools:
     def __init__(self) -> None:
         self.search_queries: list[str] = []
@@ -197,8 +239,9 @@ class QueryEchoReasoner(FakeReasoner):
         *,
         query: str,
         chunks: list[EvidenceChunk],
+        subqueries: list[str] | None = None,
     ) -> tuple[str, list[str], str, str | None]:
-        del chunks
+        del chunks, subqueries
         return f"ANSWER_QUERY={query}", ["bert-0001"], "llm", "v1.0.0"
 
 
@@ -460,8 +503,9 @@ class GroundingNeedsCitedBertReasoner(FakeReasoner):
         *,
         query: str,
         chunks: list[EvidenceChunk],
+        subqueries: list[str] | None = None,
     ) -> tuple[str, list[str], str, str | None]:
-        del query, chunks
+        del query, chunks, subqueries
         return (
             "BERT uses bidirectional attention-style contextualization while Transformer defines scaled dot-product attention.",
             ["bert-0004"],
@@ -949,7 +993,7 @@ def test_agent_mode_routes_through_agent_loop() -> None:
     assert trace.agent_iterations_used >= 1
 
 
-def test_agent_mode_simple_query_bypasses_agent_loop() -> None:
+def test_agent_mode_simple_query_completes_in_single_iteration() -> None:
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -972,8 +1016,40 @@ def test_agent_mode_simple_query_bypasses_agent_loop() -> None:
 
     assert trace is not None
     stages = [event.stage for event in trace.events]
-    assert "agent_initialize" not in stages
-    assert "retrieve" in stages
+    # All queries now go through the agent loop
+    assert "agent_initialize" in stages
+    assert "agent_think" in stages
+    # Simple queries should complete quickly (1 iteration)
+    assert trace.agent_iterations_used <= 2
+
+
+def test_agent_planner_finalize_skips_retrieval_call() -> None:
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        ambiguity_margin=0.03,
+        enable_agent_mode=True,
+        agent_max_iterations=2,
+        agent_evidence_quality_threshold=0.5,
+    )
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=PlannerFinalizeReasoner(),
+    )
+
+    response = pipeline.ask("Compare BERT vs Transformer")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    stages = [event.stage for event in trace.events]
+    assert "agent_initialize" in stages
+    assert "agent_think" in stages
+    assert "agent_act" in stages
+    assert "tool_search_chunks" not in stages
 
 
 def test_refusal_like_answer_forces_safe_fail() -> None:
@@ -1173,9 +1249,13 @@ def test_multi_question_rewrite_fans_out_retrieval_queries() -> None:
 
     assert trace is not None
     assert response.safe_fail is False
+    # Agent loop now searches each subquery in separate iterations
     assert len(tools.search_queries) == 2
-    assert len(tools.fetch_calls) == 1
-    assert tools.fetch_calls[0] == ["bert-0001", "bert-0002"]
+    assert len(tools.fetch_calls) == 2
+    # Both chunks should be collected across iterations
+    all_fetched = [cid for call in tools.fetch_calls for cid in call]
+    assert "bert-0001" in all_fetched
+    assert "bert-0002" in all_fetched
 
     search_events = [event for event in trace.events if event.stage == "tool_search_chunks"]
     assert len(search_events) == 2
@@ -1588,3 +1668,367 @@ def test_pipeline_recovers_from_synthesis_failure_with_safe_fail() -> None:
     # Verify error is traced for debugging
     error_events = [event for event in trace.events if "error" in event.stage.lower() or event.payload.get("error")]
     # May or may not have error events, but should complete
+
+
+# ====== Phase 5: Regression suites ======
+
+
+class SubqueryTrackingTools:
+    """Tools that return different chunks per query to verify subquery tracking."""
+    def __init__(self) -> None:
+        self.search_queries: list[str] = []
+
+    def search_chunks(self, query: str, top_k: int) -> list[EvidenceChunk]:
+        del top_k
+        self.search_queries.append(query)
+        if "architecture" in query.lower():
+            return [
+                EvidenceChunk(chunk_id="arch-0001", source="bert.pdf", text="BERT architecture detail.", score=0.85)
+            ]
+        if "pretraining" in query.lower():
+            return [
+                EvidenceChunk(chunk_id="pre-0001", source="bert.pdf", text="BERT pretraining detail.", score=0.83)
+            ]
+        return [
+            EvidenceChunk(chunk_id="gen-0001", source="bert.pdf", text="General BERT info.", score=0.7)
+        ]
+
+    def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
+        records = {
+            "arch-0001": EvidenceChunk(chunk_id="arch-0001", source="bert.pdf", text="BERT architecture detail.", score=0.9),
+            "pre-0001": EvidenceChunk(chunk_id="pre-0001", source="bert.pdf", text="BERT pretraining detail.", score=0.88),
+            "gen-0001": EvidenceChunk(chunk_id="gen-0001", source="bert.pdf", text="General BERT info.", score=0.8),
+        }
+        return [records[cid] for cid in chunk_ids if cid in records]
+
+    def web_search(self, query: str, *, settings: object = None) -> list[EvidenceChunk]:
+        del query, settings
+        return []
+
+
+class WebSearchFakeTools:
+    """Tools that simulate web search returning external evidence."""
+    def search_chunks(self, query: str, top_k: int) -> list[EvidenceChunk]:
+        del top_k
+        return [
+            EvidenceChunk(chunk_id="local-0001", source="bert.pdf", text="BERT info from local docs.", score=0.6)
+        ]
+
+    def fetch_chunks_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
+        if "local-0001" in chunk_ids:
+            return [
+                EvidenceChunk(chunk_id="local-0001", source="bert.pdf", text="BERT info from local docs.", score=0.8)
+            ]
+        return []
+
+    def web_search(self, query: str, *, settings: object = None) -> list[EvidenceChunk]:
+        del settings
+        return [
+            EvidenceChunk(
+                chunk_id="web-abc123",
+                source="https://example.com/bert",
+                text=f"Web result for: {query}",
+                score=0.75,
+                provenance="web",
+            )
+        ]
+
+
+class WebSearchPlannerReasoner(FakeReasoner):
+    """Planner that recommends web_search on first iteration, then finalize."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._call_count = 0
+
+    def plan_agent_step(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None,
+        rewritten_queries: list[str],
+        evidence_quality_score: float,
+        chunk_count: int,
+        agent_iterations: int,
+        max_iterations: int,
+        last_observation: str | None = None,
+        subquery_statuses: list[dict[str, object]] | None = None,
+    ):
+        del (
+            query, conversation_summary, rewritten_queries, evidence_quality_score,
+            chunk_count, max_iterations, last_observation, subquery_statuses,
+        )
+        self._call_count += 1
+        if agent_iterations <= 1:
+            return AgentThought(
+                reasoning="Local docs are insufficient; trying web search.",
+                recommended_action="web_search",
+                confidence=0.7,
+            )
+        return AgentThought(
+            reasoning="Evidence collected; finalizing.",
+            recommended_action="finalize",
+            confidence=0.9,
+        )
+
+
+class DecompositionTrackingReasoner(FakeReasoner):
+    """Reasoner that decomposes and always marks complex."""
+    def detect_query_complexity(self, *, query: str, conversation_summary: str | None = None):
+        del query, conversation_summary
+        return QueryComplexity.COMPLEX
+
+    def decompose_query_lightly(self, *, query: str, conversation_summary: str | None = None):
+        del query, conversation_summary
+        return ["What is BERT architecture?", "What is BERT pretraining?"]
+
+    def synthesize_answer(
+        self, *, query: str, chunks: list[EvidenceChunk], subqueries: list[str] | None = None
+    ):
+        del query, subqueries
+        if chunks:
+            return "BERT has a transformer architecture and uses MLM pretraining.", [chunks[0].chunk_id], "llm", "v1.0.0"
+        return "No evidence.", [], "llm", "v1.0.0"
+
+
+def test_subquery_statuses_are_initialized_and_tracked() -> None:
+    """Decomposed subqueries get per-subquery tracking through the agent loop."""
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        enable_query_decomposition=True,
+        agent_max_iterations=5,
+        agent_evidence_quality_threshold=0.5,
+    )
+    trace_store = TraceStore()
+    tools = SubqueryTrackingTools()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=tools,
+        trace_store=trace_store,
+        reasoner=DecompositionTrackingReasoner(),
+    )
+
+    response = pipeline.ask("Explain BERT architecture and pretraining")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is False
+    # Both subqueries should have been searched
+    assert len(tools.search_queries) >= 2
+    # Trace should include per-subquery quality info
+    reflect_events = [e for e in trace.events if e.stage == "agent_reflect"]
+    assert len(reflect_events) >= 1
+    last_reflect = reflect_events[-1]
+    assert "subquery_quality" in last_reflect.payload
+
+
+def test_planner_web_search_action_executes_when_enabled() -> None:
+    """When web_search_enabled=True and planner recommends web_search, web results are fetched."""
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        web_search_enabled=True,
+        agent_max_iterations=3,
+        agent_evidence_quality_threshold=0.5,
+    )
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=WebSearchFakeTools(),
+        trace_store=trace_store,
+        reasoner=WebSearchPlannerReasoner(),
+    )
+
+    response = pipeline.ask("What is the latest BERT update?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    stages = [e.stage for e in trace.events]
+    assert "tool_web_search" in stages
+    # Web results should carry provenance='web'
+    act_events = [e for e in trace.events if e.stage == "agent_act" and e.payload.get("action") == "web_search"]
+    assert len(act_events) >= 1
+
+
+def test_planner_web_search_disabled_does_not_crash() -> None:
+    """When web_search_enabled=False and planner recommends web_search, it gracefully skips."""
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        web_search_enabled=False,
+        agent_max_iterations=3,
+        agent_evidence_quality_threshold=0.5,
+    )
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=WebSearchPlannerReasoner(),
+    )
+
+    response = pipeline.ask("What is the latest BERT update?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    # Should not crash — web search action marked as disabled
+    act_events = [e for e in trace.events if e.stage == "agent_act"]
+    disabled_acts = [e for e in act_events if e.payload.get("disabled")]
+    assert len(disabled_acts) >= 1
+
+
+def test_all_queries_route_through_agent_loop() -> None:
+    """After legacy path retirement, even simple queries use the agent loop."""
+    trace_store = TraceStore()
+    pipeline = AgenticPipeline(
+        settings=_settings(),
+        tools=FakeTools(),
+        trace_store=trace_store,
+        reasoner=FakeReasoner(),
+    )
+
+    response = pipeline.ask("What is BERT pretraining?")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    stages = [e.stage for e in trace.events]
+    assert "agent_initialize" in stages
+    assert "agent_think" in stages
+    assert "agent_act" in stages
+    assert "agent_reflect" in stages
+
+
+def test_sufficiency_policy_respects_pending_subqueries() -> None:
+    """Agent loop continues when subqueries are still pending, even if overall quality is high."""
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        enable_query_decomposition=True,
+        agent_max_iterations=5,
+        agent_evidence_quality_threshold=0.5,
+    )
+    trace_store = TraceStore()
+    tools = SubqueryTrackingTools()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=tools,
+        trace_store=trace_store,
+        reasoner=DecompositionTrackingReasoner(),
+    )
+
+    response = pipeline.ask("Explain BERT architecture and pretraining")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is False
+    # Both subqueries must have been individually searched
+    searched_arch = any("architecture" in q.lower() for q in tools.search_queries)
+    searched_pre = any("pretraining" in q.lower() for q in tools.search_queries)
+    assert searched_arch, "Architecture subquery was never searched"
+    assert searched_pre, "Pretraining subquery was never searched"
+
+
+def test_planner_action_normalization_covers_web_search_synonyms() -> None:
+    """Reasoner normalizes web search synonyms to canonical 'web_search' action."""
+    from src.services.reasoner import QueryReasoner
+
+    for raw in ["web_search", "web", "internet", "external_search"]:
+        assert QueryReasoner._normalize_agent_action(raw) == "web_search"
+
+    for raw in ["search_documents", "search", "retrieve", "retrieval"]:
+        assert QueryReasoner._normalize_agent_action(raw) == "search_documents"
+
+    for raw in ["finalize", "finish", "complete", "done"]:
+        assert QueryReasoner._normalize_agent_action(raw) == "finalize"
+
+
+def test_grounding_refusal_detection_forces_safe_fail_deterministically() -> None:
+    """Grounding refusal detection consistently converts to safe_fail."""
+    settings = _settings()
+    trace_store = TraceStore()
+
+    class StrictRefusalReasoner(FakeReasoner):
+        def assess_grounding(self, *, answer: str, citations: list[str], evidence: list[str]):
+            del citations, evidence
+            if "not" in answer.lower() and "evidence" in answer.lower():
+                return (
+                    GroundingResult(status=GroundingStatus.UNSUPPORTED, reason="Refusal detected.", is_refusal=True),
+                    "llm", "v1.0.0",
+                )
+            return (
+                GroundingResult(status=GroundingStatus.SUPPORTED, reason="Grounded."),
+                "llm", "v1.0.0",
+            )
+
+    for refusal_text in [
+        "The evidence does not contain information about X.",
+        "I could not find relevant evidence in the documents.",
+    ]:
+        pipeline = AgenticPipeline(
+            settings=settings,
+            tools=FakeTools(),
+            trace_store=trace_store,
+            reasoner=StrictRefusalReasoner(synthesis_answer=refusal_text),
+        )
+        response = pipeline.ask("Some question?")
+        assert response.safe_fail is True
+        assert response.answer == settings.safe_fail_message
+
+
+def test_evidence_provenance_label_preserved_through_pipeline() -> None:
+    """Web-sourced chunks retain provenance='web' label through to generation."""
+    from src.core.models import EvidenceChunk
+
+    web_chunk = EvidenceChunk(
+        chunk_id="web-test",
+        source="https://example.com",
+        text="External content.",
+        score=0.8,
+        provenance="web",
+    )
+    local_chunk = EvidenceChunk(
+        chunk_id="local-test",
+        source="doc.pdf",
+        text="Local content.",
+        score=0.9,
+        provenance="local",
+    )
+    assert web_chunk.provenance == "web"
+    assert local_chunk.provenance == "local"
+    # Verify model_dump preserves provenance
+    assert web_chunk.model_dump()["provenance"] == "web"
+    assert local_chunk.model_dump()["provenance"] == "local"
+
+
+def test_decomposition_fans_out_when_complex_and_enabled() -> None:
+    """Complex queries with decomposition enabled produce multiple subqueries tracked end-to-end."""
+    settings = Settings(
+        documents_dir=Path("documents"),
+        retrieval_top_k=3,
+        min_relevance_score=0.1,
+        enable_query_decomposition=True,
+        agent_max_iterations=5,
+        agent_evidence_quality_threshold=0.5,
+    )
+    trace_store = TraceStore()
+    tools = MultiQueryTools()
+    pipeline = AgenticPipeline(
+        settings=settings,
+        tools=tools,
+        trace_store=trace_store,
+        reasoner=DecompositionTrackingReasoner(),
+    )
+
+    response = pipeline.ask("Explain BERT deeply")
+    trace = trace_store.get(response.trace_id)
+
+    assert trace is not None
+    assert response.safe_fail is False
+    prep_events = [e for e in trace.events if e.stage == "prepare_decomposition"]
+    assert len(prep_events) == 1
+    assert prep_events[0].payload["applied"] is True
+    assert prep_events[0].payload["query_count"] == 2

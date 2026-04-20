@@ -50,13 +50,13 @@ class Settings(BaseSettings):
     retrieval_sparse_weight: float = 0.35
     context_compression_base_threshold: int = 2000
     context_compression_growth_factor: float = 0.9
-    enable_agent_mode: bool = False
+    enable_agent_mode: bool = True
     agent_max_iterations: int = 10
     agent_evidence_quality_threshold: float = 0.65
     agent_tool_timeout_seconds: float = 2.0
-    enable_query_decomposition: bool = False
+    enable_query_decomposition: bool = True
     max_decomposition_depth: int = 3
-    web_search_enabled: bool = False
+    web_search_enabled: bool = True
     web_search_provider: str = "tavily"
     web_search_api_key: str = ""
     web_search_top_k: int = 3

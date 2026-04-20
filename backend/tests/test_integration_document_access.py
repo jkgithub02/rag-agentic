@@ -68,8 +68,10 @@ class _DeterministicReasoner:
             "llm",
         )
 
-    def synthesize_answer(self, *, query: str, chunks: list) -> tuple[str, list[str], str, str | None]:
-        del query
+    def synthesize_answer(
+        self, *, query: str, chunks: list, subqueries: list[str] | None = None
+    ) -> tuple[str, list[str], str, str | None]:
+        del query, subqueries
         if not chunks:
             raise ValueError("No chunks to synthesize from.")
         answer = f"Evidence found in {chunks[0].source}."

@@ -35,6 +35,7 @@ class EvidenceChunk(BaseModel):
     source: str
     text: str
     score: float = 0.0
+    provenance: str = "local"  # "local" | "web"
 
 
 class ValidationResult(BaseModel):
@@ -55,10 +56,18 @@ class TraceEvent(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class SubQueryStatus(BaseModel):
+    query: str
+    status: str = "pending"  # pending | retrieved | sufficient
+    chunk_ids: list[str] = Field(default_factory=list)
+    quality_score: float = 0.0
+
+
 class AgentThought(BaseModel):
     reasoning: str
     recommended_action: str
     confidence: float = 0.0
+    target_subquery_index: int | None = None
 
 
 class AgentObservation(BaseModel):

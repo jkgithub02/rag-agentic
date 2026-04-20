@@ -8,6 +8,7 @@ from src.core.models import (
     EvidenceChunk,
     GroundingResult,
     PipelineTrace,
+    SubQueryStatus,
     ValidationResult,
 )
 
@@ -28,6 +29,7 @@ class PipelineState(TypedDict, total=False):
     limit_exceeded: bool
     clarify_needed: bool
     clarify_message: str
+    is_conversation_query: bool
     validation: ValidationResult
     answer: str
     citations: list[str]
@@ -41,3 +43,5 @@ class PipelineState(TypedDict, total=False):
     agent_thoughts: list[AgentThought]
     agent_observations: list[AgentObservation]
     selected_action: str
+    subquery_statuses: list[SubQueryStatus]
+    target_subquery_index: int

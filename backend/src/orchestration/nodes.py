@@ -10,6 +10,7 @@ from src.core.models import (
     GroundingStatus,
     PipelineTrace,
     QueryComplexity,
+    SubQueryStatus,
     TraceEvent,
     ValidationResult,
     ValidationStatus,
@@ -237,21 +238,23 @@ class PipelineNodes:
         )
 
         if not should_decompose:
+            subquery_statuses = [SubQueryStatus(query=q) for q in rewritten_queries]
             self._event(
                 trace,
                 "prepare_decomposition",
                 {"applied": False, "reason": "disabled-or-not-complex", "query_count": len(rewritten_queries)},
             )
-            return {"rewritten_queries": rewritten_queries, "trace": trace}
+            return {"rewritten_queries": rewritten_queries, "subquery_statuses": subquery_statuses, "trace": trace}
 
         decompose = getattr(self._reasoner, "decompose_query_lightly", None)
         if not callable(decompose):
+            subquery_statuses = [SubQueryStatus(query=q) for q in rewritten_queries]
             self._event(
                 trace,
                 "prepare_decomposition",
                 {"applied": False, "reason": "reasoner-missing-method", "query_count": len(rewritten_queries)},
             )
-            return {"rewritten_queries": rewritten_queries, "trace": trace}
+            return {"rewritten_queries": rewritten_queries, "subquery_statuses": subquery_statuses, "trace": trace}
 
         try:
             sub_queries = decompose(
@@ -259,6 +262,7 @@ class PipelineNodes:
                 conversation_summary=state.get("conversation_summary"),
             )
         except Exception as exc:
+            subquery_statuses = [SubQueryStatus(query=q) for q in rewritten_queries]
             self._event(
                 trace,
                 "prepare_decomposition",
@@ -269,7 +273,7 @@ class PipelineNodes:
                     "query_count": len(rewritten_queries),
                 },
             )
-            return {"rewritten_queries": rewritten_queries, "trace": trace}
+            return {"rewritten_queries": rewritten_queries, "subquery_statuses": subquery_statuses, "trace": trace}
 
         cleaned: list[str] = []
         seen_lower: set[str] = set()
@@ -286,6 +290,9 @@ class PipelineNodes:
             cleaned.append(candidate)
 
         next_queries = cleaned or rewritten_queries
+        subquery_statuses = [
+            SubQueryStatus(query=q) for q in next_queries
+        ]
         self._event(
             trace,
             "prepare_decomposition",
@@ -296,14 +303,21 @@ class PipelineNodes:
                 "queries": next_queries,
             },
         )
-        return {"rewritten_queries": next_queries, "trace": trace}
+        return {"rewritten_queries": next_queries, "subquery_statuses": subquery_statuses, "trace": trace}
 
     def agent_initialize(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
+        subquery_statuses = state.get("subquery_statuses") or [
+            SubQueryStatus(query=q) for q in (state.get("rewritten_queries") or [state.get("rewritten_query", "")])
+        ]
         self._event(
             trace,
             "agent_initialize",
-            {"mode": "enabled", "max_iterations": self._settings.agent_max_iterations},
+            {
+                "mode": "enabled",
+                "max_iterations": self._settings.agent_max_iterations,
+                "subquery_count": len(subquery_statuses),
+            },
         )
         return {
             "agent_iterations": 0,
@@ -311,30 +325,72 @@ class PipelineNodes:
             "agent_thoughts": [],
             "agent_observations": [],
             "selected_action": "search_documents",
+            "subquery_statuses": subquery_statuses,
+            "target_subquery_index": 0,
             "trace": trace,
         }
 
     def agent_think(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         agent_iterations = state.get("agent_iterations", 0) + 1
-        thought = AgentThought(
-            reasoning="Gather or improve evidence quality using document search.",
-            recommended_action="search_documents",
-            confidence=0.6,
-        )
+        subquery_statuses = state.get("subquery_statuses") or []
+        sq_dicts = [sq.model_dump() for sq in subquery_statuses] if subquery_statuses else None
+
+        planner = getattr(self._reasoner, "plan_agent_step", None)
+        if callable(planner):
+            try:
+                last_observation = None
+                observations = state.get("agent_observations", [])
+                if observations:
+                    last_observation = observations[-1].message
+                thought = planner(
+                    query=state.get("original_query") or state.get("rewritten_query") or "",
+                    conversation_summary=state.get("conversation_summary"),
+                    rewritten_queries=state.get("rewritten_queries") or [],
+                    evidence_quality_score=state.get("evidence_quality_score", 0.0),
+                    chunk_count=len(state.get("chunks", [])),
+                    agent_iterations=agent_iterations,
+                    max_iterations=self._settings.agent_max_iterations,
+                    last_observation=last_observation,
+                    subquery_statuses=sq_dicts,
+                )
+            except Exception:
+                thought = AgentThought(
+                    reasoning="Planner failed; defaulting to document search.",
+                    recommended_action="search_documents",
+                    confidence=0.0,
+                )
+        else:
+            # Fallback: target the first pending/weakest subquery
+            target_idx = self._pick_weakest_subquery(subquery_statuses)
+            thought = AgentThought(
+                reasoning="Gather or improve evidence quality using document search.",
+                recommended_action="search_documents",
+                confidence=0.6,
+                target_subquery_index=target_idx,
+            )
+
+        # Resolve target subquery index
+        target_index = thought.target_subquery_index
+        if target_index is None and subquery_statuses:
+            target_index = self._pick_weakest_subquery(subquery_statuses)
+
         thoughts = [*state.get("agent_thoughts", []), thought]
         self._event(
             trace,
             "agent_think",
             {
                 "iteration": agent_iterations,
+                "reasoning": thought.reasoning,
                 "selected_action": thought.recommended_action,
                 "confidence": thought.confidence,
+                "target_subquery_index": target_index,
             },
         )
         return {
             "agent_iterations": agent_iterations,
             "selected_action": thought.recommended_action,
+            "target_subquery_index": target_index if target_index is not None else 0,
             "agent_thoughts": thoughts,
             "trace": trace,
         }
@@ -342,25 +398,142 @@ class PipelineNodes:
     def agent_act(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         selected_action = state.get("selected_action", "search_documents")
+        subquery_statuses = list(state.get("subquery_statuses") or [])
+        target_idx = state.get("target_subquery_index", 0)
+
+        if selected_action == "finalize":
+            observation = AgentObservation(
+                action=selected_action,
+                success=True,
+                quality_score=state.get("evidence_quality_score", 0.0),
+                message="Planner decided evidence is sufficient to finalize.",
+            )
+            observations = [*state.get("agent_observations", []), observation]
+            self._event(trace, "agent_act", {"action": selected_action, "finalize": True})
+            return {
+                "agent_observations": observations,
+                "chunks": state.get("chunks", []),
+                "subquery_statuses": subquery_statuses,
+                "trace": trace,
+            }
 
         if selected_action == "search_documents":
-            retrieval_update = self.retrieve(state)
-            chunks = retrieval_update.get("chunks", [])
+            # Use targeted subquery if available, otherwise fall back to full retrieval
+            targeted_query = None
+            if subquery_statuses and 0 <= target_idx < len(subquery_statuses):
+                targeted_query = subquery_statuses[target_idx].query
+
+            if targeted_query:
+                # Targeted single-subquery retrieval
+                targeted_state = dict(state)
+                targeted_state["rewritten_queries"] = [targeted_query]
+                retrieval_update = self.retrieve(targeted_state)
+            else:
+                retrieval_update = self.retrieve(state)
+
+            new_chunks = retrieval_update.get("chunks", [])
+
+            # Merge new chunks into existing chunks, deduplicating by chunk_id
+            existing_chunks = list(state.get("chunks") or [])
+            existing_ids = {c.chunk_id for c in existing_chunks}
+            for chunk in new_chunks:
+                if chunk.chunk_id not in existing_ids:
+                    existing_chunks.append(chunk)
+                    existing_ids.add(chunk.chunk_id)
+
+            # Update targeted subquery status
+            if subquery_statuses and 0 <= target_idx < len(subquery_statuses):
+                sq = subquery_statuses[target_idx]
+                new_chunk_ids = [c.chunk_id for c in new_chunks if c.chunk_id not in set(sq.chunk_ids)]
+                subquery_statuses[target_idx] = sq.model_copy(update={
+                    "status": "retrieved",
+                    "chunk_ids": [*sq.chunk_ids, *new_chunk_ids],
+                })
+
             observation = AgentObservation(
                 action=selected_action,
                 success=True,
                 quality_score=0.0,
-                message=f"Retrieved {len(chunks)} chunk(s).",
+                message=f"Retrieved {len(new_chunks)} chunk(s) for subquery[{target_idx}].",
             )
             observations = [*state.get("agent_observations", []), observation]
             self._event(
                 trace,
                 "agent_act",
-                {"action": selected_action, "chunk_count": len(chunks)},
+                {
+                    "action": selected_action,
+                    "chunk_count": len(new_chunks),
+                    "total_chunks": len(existing_chunks),
+                    "target_subquery_index": target_idx,
+                },
             )
             return {
                 **retrieval_update,
+                "chunks": existing_chunks,
                 "agent_observations": observations,
+                "subquery_statuses": subquery_statuses,
+                "trace": trace,
+            }
+
+        if selected_action == "web_search":
+            if not self._settings.web_search_enabled:
+                observation = AgentObservation(
+                    action=selected_action,
+                    success=False,
+                    quality_score=0.0,
+                    message="Web search is disabled.",
+                )
+                observations = [*state.get("agent_observations", []), observation]
+                self._event(trace, "agent_act", {"action": selected_action, "disabled": True})
+                return {"agent_observations": observations, "subquery_statuses": subquery_statuses, "trace": trace}
+
+            targeted_query = None
+            if subquery_statuses and 0 <= target_idx < len(subquery_statuses):
+                targeted_query = subquery_statuses[target_idx].query
+            search_query = targeted_query or state.get("rewritten_query") or state.get("query", "")
+
+            self._event(trace, "tool_web_search", {"query": search_query})
+            web_chunks = self._tools.web_search(search_query, settings=self._settings)
+            self._event(trace, "retrieve", {"hits": [c.model_dump() for c in web_chunks]})
+
+            existing_chunks = list(state.get("chunks") or [])
+            existing_ids = {c.chunk_id for c in existing_chunks}
+            for chunk in web_chunks:
+                if chunk.chunk_id not in existing_ids:
+                    existing_chunks.append(chunk)
+                    existing_ids.add(chunk.chunk_id)
+
+            if subquery_statuses and 0 <= target_idx < len(subquery_statuses):
+                sq = subquery_statuses[target_idx]
+                new_chunk_ids = [c.chunk_id for c in web_chunks if c.chunk_id not in set(sq.chunk_ids)]
+                subquery_statuses[target_idx] = sq.model_copy(update={
+                    "status": "retrieved",
+                    "chunk_ids": [*sq.chunk_ids, *new_chunk_ids],
+                })
+
+            tool_call_count = state.get("tool_call_count", 0) + 1
+            observation = AgentObservation(
+                action=selected_action,
+                success=True,
+                quality_score=0.0,
+                message=f"Web search returned {len(web_chunks)} result(s) for subquery[{target_idx}].",
+            )
+            observations = [*state.get("agent_observations", []), observation]
+            self._event(
+                trace,
+                "agent_act",
+                {
+                    "action": selected_action,
+                    "chunk_count": len(web_chunks),
+                    "total_chunks": len(existing_chunks),
+                    "target_subquery_index": target_idx,
+                },
+            )
+            return {
+                "chunks": existing_chunks,
+                "tool_call_count": tool_call_count,
+                "agent_observations": observations,
+                "subquery_statuses": subquery_statuses,
                 "trace": trace,
             }
 
@@ -372,11 +545,13 @@ class PipelineNodes:
         )
         observations = [*state.get("agent_observations", []), observation]
         self._event(trace, "agent_act", {"action": selected_action, "unsupported": True})
-        return {"agent_observations": observations, "trace": trace}
+        return {"agent_observations": observations, "subquery_statuses": subquery_statuses, "trace": trace}
 
     def agent_reflect(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         chunks = state.get("chunks", [])
+        chunk_by_id = {c.chunk_id: c for c in chunks}
+
         if not chunks:
             quality_score = 0.0
         else:
@@ -384,16 +559,41 @@ class PipelineNodes:
             avg_score = sum(chunk.score for chunk in chunks) / len(chunks)
             quality_score = round((top_score * 0.7) + (avg_score * 0.3), 4)
 
+        # Per-subquery quality assessment
+        subquery_statuses = list(state.get("subquery_statuses") or [])
+        threshold = self._settings.agent_evidence_quality_threshold
+        for i, sq in enumerate(subquery_statuses):
+            sq_chunks = [chunk_by_id[cid] for cid in sq.chunk_ids if cid in chunk_by_id]
+            if not sq_chunks:
+                sq_quality = 0.0
+            else:
+                sq_top = max(c.score for c in sq_chunks)
+                sq_avg = sum(c.score for c in sq_chunks) / len(sq_chunks)
+                sq_quality = round((sq_top * 0.7) + (sq_avg * 0.3), 4)
+            new_status = "sufficient" if sq_quality >= threshold else sq.status
+            subquery_statuses[i] = sq.model_copy(update={
+                "quality_score": sq_quality,
+                "status": new_status,
+            })
+
         self._event(
             trace,
             "agent_reflect",
             {
                 "quality_score": quality_score,
-                "threshold": self._settings.agent_evidence_quality_threshold,
+                "threshold": threshold,
                 "agent_iterations": state.get("agent_iterations", 0),
+                "subquery_quality": [
+                    {"index": i, "status": sq.status, "quality": sq.quality_score}
+                    for i, sq in enumerate(subquery_statuses)
+                ],
             },
         )
-        return {"evidence_quality_score": quality_score, "trace": trace}
+        return {
+            "evidence_quality_score": quality_score,
+            "subquery_statuses": subquery_statuses,
+            "trace": trace,
+        }
 
     def retrieve(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
@@ -459,12 +659,14 @@ class PipelineNodes:
             (summary_chars // 4) * self._settings.context_compression_growth_factor
         )
         compress_needed = estimated_tokens > max_allowed
+
+        # Limit check: tool_call_count exceeding the configured max is the
+        # canonical signal that the pipeline has exhausted its budget.  The
+        # iteration_count mirrors the agent_max_iterations guard but is also
+        # used on the non-agent path.
         iteration_count = state.get("iteration_count", 0)
         tool_call_count = state.get("tool_call_count", 0)
-        limit_exceeded = (
-            iteration_count >= self._settings.agent_max_iterations
-            or tool_call_count > self._settings.agent_max_tool_calls
-        )
+        limit_exceeded = tool_call_count > self._settings.agent_max_tool_calls
 
         self._event(
             trace,
@@ -688,6 +890,21 @@ class PipelineNodes:
         return {"trace": trace}
 
     @staticmethod
+    def _pick_weakest_subquery(subquery_statuses: list[SubQueryStatus]) -> int:
+        if not subquery_statuses:
+            return 0
+        # Prefer pending, then lowest quality
+        best_idx = 0
+        best_priority = (1, subquery_statuses[0].quality_score)  # (0=pending, 1=other), quality
+        for i, sq in enumerate(subquery_statuses):
+            is_pending = 0 if sq.status == "pending" else 1
+            priority = (is_pending, sq.quality_score)
+            if priority < best_priority:
+                best_priority = priority
+                best_idx = i
+        return best_idx
+
+    @staticmethod
     def _event(trace: PipelineTrace, stage: str, payload: dict[str, object]) -> None:
         trace.events.append(TraceEvent(stage=stage, payload=payload))
 
@@ -706,8 +923,17 @@ class PipelineNodes:
         chunks = state.get("chunks", [])
         chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
         query_for_generation = state.get("original_query") or state.get("rewritten_query") or ""
+
+        # Pass subquery context if decomposition was used
+        subquery_statuses = state.get("subquery_statuses", [])
+        subquery_texts = [sq.query for sq in subquery_statuses] if subquery_statuses else None
+
         answer, citation_chunk_ids, generation_source, prompt_version = (
-            self._reasoner.synthesize_answer(query=query_for_generation, chunks=chunks)
+            self._reasoner.synthesize_answer(
+                query=query_for_generation,
+                chunks=chunks,
+                subqueries=subquery_texts,
+            )
         )
         citations = [
             f"{chunk_by_id[chunk_id].source}#{chunk_id}"

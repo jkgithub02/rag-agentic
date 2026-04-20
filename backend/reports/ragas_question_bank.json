@@ -315,5 +315,70 @@
     ],
     "expect_safe_fail": false,
     "expect_rewrite": false
+  },
+  {
+    "id": "C8-001",
+    "category": "decomposition_multistep",
+    "query": "Compare the pretraining objectives of BERT and the training procedure of the Transformer, then explain how RAG builds on both.",
+    "reference": "BERT uses masked language modeling and next sentence prediction for pretraining. The Transformer is trained end-to-end on translation with teacher forcing. RAG combines a pretrained retriever with a seq2seq generator, building on both paradigms.",
+    "expected_sources": [
+      "Attention is all you need.pdf",
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C8-002",
+    "category": "decomposition_multistep",
+    "query": "What are the key architectural differences between BERT and the original Transformer, and how does each handle positional information?",
+    "reference": "The Transformer uses sinusoidal positional encodings in an encoder-decoder architecture. BERT uses learned positional embeddings in an encoder-only architecture.",
+    "expected_sources": [
+      "Attention is all you need.pdf",
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C8-003",
+    "category": "decomposition_multistep",
+    "query": "Explain the attention mechanism in the Transformer, how BERT adapts it, and what retrieval component RAG adds on top.",
+    "reference": null,
+    "expected_sources": [
+      "Attention is all you need.pdf",
+      "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+      "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf"
+    ],
+    "expect_safe_fail": false,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C9-001",
+    "category": "web_search_provenance",
+    "query": "What are the latest developments in transformer architecture research in 2025?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": true,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C9-002",
+    "category": "web_search_provenance",
+    "query": "What is the current state-of-the-art on the GLUE benchmark as of 2025?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": true,
+    "expect_rewrite": false
+  },
+  {
+    "id": "C9-003",
+    "category": "web_search_provenance",
+    "query": "How does GPT-4o compare to BERT on natural language understanding tasks?",
+    "reference": null,
+    "expected_sources": [],
+    "expect_safe_fail": true,
+    "expect_rewrite": false
   }
 ]

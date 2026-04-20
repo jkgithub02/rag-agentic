@@ -10,7 +10,7 @@ from src.evaluation.ragas import build_question_bank, run_ragas_evaluation
 
 def test_question_bank_covers_all_requested_categories() -> None:
     questions = build_question_bank()
-    assert len(questions) == 30
+    assert len(questions) == 36
 
     counts: dict[str, int] = {}
     for question in questions:
@@ -24,6 +24,8 @@ def test_question_bank_covers_all_requested_categories() -> None:
         "safe_fail_unanswerable": 4,
         "ambiguous_rewrite": 4,
         "semantic_mismatch": 3,
+        "decomposition_multistep": 3,
+        "web_search_provenance": 3,
     }
 
 
@@ -44,10 +46,10 @@ def test_ragas_live_run() -> None:
         api_url=os.environ.get("RAGAS_API_URL", "http://127.0.0.1:8000"),
         output_path=output_path,
         ollama_base_url=os.environ.get("RAGAS_OLLAMA_BASE_URL", "http://localhost:11434"),
-        ollama_embedding_model=os.environ.get("RAGAS_OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"),
+        ollama_embedding_model=os.environ.get("RAGAS_OLLAMA_EMBEDDING_MODEL", "mxbai-embed-large"),
     )
 
-    assert report["question_count"] == 30
+    assert report["question_count"] == 36
     assert isinstance(report["mean_scores"], dict)
-    assert len(report["rows"]) == 30
+    assert len(report["rows"]) == 36
     assert output_path.exists()

@@ -31,7 +31,7 @@ class RagasQuestion:
 
 
 def build_question_bank() -> list[RagasQuestion]:
-    """Canonical 7-category evaluation set for interview demo and regression checks."""
+    """Canonical 9-category evaluation set for interview demo and regression checks."""
 
     return [
         # Category 1 - Straightforward Factual (Baseline)
@@ -261,6 +261,53 @@ def build_question_bank() -> list[RagasQuestion]:
             query="How is context aggregated?",
             expected_sources=(TRANSFORMER_PDF,),
         ),
+        # Category 8 - Multi-Step / Decomposition
+        RagasQuestion(
+            id="C8-001",
+            category="decomposition_multistep",
+            query="Compare the pretraining objectives of BERT and the training procedure of the Transformer, then explain how RAG builds on both.",
+            reference=(
+                "BERT uses masked language modeling and next sentence prediction for pretraining. "
+                "The Transformer is trained end-to-end on translation with teacher forcing. "
+                "RAG combines a pretrained retriever with a seq2seq generator, building on both paradigms."
+            ),
+            expected_sources=(TRANSFORMER_PDF, BERT_PDF, RAG_PDF),
+        ),
+        RagasQuestion(
+            id="C8-002",
+            category="decomposition_multistep",
+            query="What are the key architectural differences between BERT and the original Transformer, and how does each handle positional information?",
+            reference=(
+                "The Transformer uses sinusoidal positional encodings in an encoder-decoder architecture. "
+                "BERT uses learned positional embeddings in an encoder-only architecture."
+            ),
+            expected_sources=(TRANSFORMER_PDF, BERT_PDF),
+        ),
+        RagasQuestion(
+            id="C8-003",
+            category="decomposition_multistep",
+            query="Explain the attention mechanism in the Transformer, how BERT adapts it, and what retrieval component RAG adds on top.",
+            expected_sources=(TRANSFORMER_PDF, BERT_PDF, RAG_PDF),
+        ),
+        # Category 9 - Web Search Provenance
+        RagasQuestion(
+            id="C9-001",
+            category="web_search_provenance",
+            query="What are the latest developments in transformer architecture research in 2025?",
+            expect_safe_fail=True,
+        ),
+        RagasQuestion(
+            id="C9-002",
+            category="web_search_provenance",
+            query="What is the current state-of-the-art on the GLUE benchmark as of 2025?",
+            expect_safe_fail=True,
+        ),
+        RagasQuestion(
+            id="C9-003",
+            category="web_search_provenance",
+            query="How does GPT-4o compare to BERT on natural language understanding tasks?",
+            expect_safe_fail=True,
+        ),
     ]
 
 
@@ -275,6 +322,7 @@ def _extract_sources(citations: list[str]) -> list[str]:
 
 def _extract_retrieved_contexts(trace: dict[str, Any]) -> list[str]:
     contexts: list[str] = []
+    seen_texts: set[str] = set()
     for event in trace.get("events", []):
         if event.get("stage") != "retrieve":
             continue
@@ -287,13 +335,15 @@ def _extract_retrieved_contexts(trace: dict[str, Any]) -> list[str]:
         for hit in hits:
             if isinstance(hit, dict):
                 text = hit.get("text")
-                if isinstance(text, str) and text.strip():
+                if isinstance(text, str) and text.strip() and text not in seen_texts:
                     contexts.append(text)
+                    seen_texts.add(text)
     return contexts
 
 
 def _extract_retrieved_chunks(trace: dict[str, Any]) -> list[dict[str, object]]:
     chunks: list[dict[str, object]] = []
+    seen_ids: set[str] = set()
     for event in trace.get("events", []):
         if event.get("stage") != "retrieve":
             continue
@@ -309,10 +359,62 @@ def _extract_retrieved_chunks(trace: dict[str, Any]) -> list[dict[str, object]]:
             chunk_id = hit.get("chunk_id")
             source = hit.get("source")
             score = hit.get("score")
-            if isinstance(chunk_id, str) and isinstance(source, str):
+            provenance = hit.get("provenance", "local")
+            if isinstance(chunk_id, str) and isinstance(source, str) and chunk_id not in seen_ids:
                 score_value = float(score) if isinstance(score, (int, float)) else 0.0
-                chunks.append({"chunk_id": chunk_id, "source": source, "score": score_value})
+                chunks.append({
+                    "chunk_id": chunk_id,
+                    "source": source,
+                    "score": score_value,
+                    "provenance": provenance,
+                })
+                seen_ids.add(chunk_id)
     return chunks
+
+
+def _extract_agent_metadata(trace: dict[str, Any]) -> dict[str, Any]:
+    """Extract agentic pipeline metadata from trace events."""
+    metadata: dict[str, Any] = {
+        "agent_iterations": trace.get("agent_iterations_used", 0),
+        "agent_thought_count": trace.get("agent_thought_count", 0),
+        "decomposition_applied": False,
+        "subquery_count": 0,
+        "web_search_used": False,
+        "web_chunk_count": 0,
+        "local_chunk_count": 0,
+        "actions_taken": [],
+    }
+
+    for event in trace.get("events", []):
+        stage = event.get("stage")
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            continue
+
+        if stage == "prepare_decomposition":
+            metadata["decomposition_applied"] = bool(payload.get("applied"))
+            metadata["subquery_count"] = int(payload.get("query_count", 0))
+
+        elif stage == "tool_web_search":
+            metadata["web_search_used"] = True
+
+        elif stage == "agent_act":
+            action = payload.get("action")
+            if isinstance(action, str):
+                metadata["actions_taken"].append(action)
+
+        elif stage == "retrieve":
+            hits = payload.get("hits")
+            if isinstance(hits, list):
+                for hit in hits:
+                    if isinstance(hit, dict):
+                        prov = hit.get("provenance", "local")
+                        if prov == "web":
+                            metadata["web_chunk_count"] += 1
+                        else:
+                            metadata["local_chunk_count"] += 1
+
+    return metadata
 
 
 def _source_pass(case: RagasQuestion, actual_sources: list[str]) -> bool | None:
@@ -410,7 +512,7 @@ def run_ragas_evaluation(
     bedrock_chat_model_id: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
     request_timeout_seconds: float = 120.0,
 ) -> dict[str, Any]:
-    """Run the 7-category evaluation against a live API and persist JSON report."""
+    """Run the 9-category evaluation against a live API and persist JSON report."""
 
     questions = build_question_bank()
     category_counts: dict[str, int] = {}
@@ -462,6 +564,11 @@ def run_ragas_evaluation(
             retrieved_chunks = _extract_retrieved_chunks(trace)
             rewritten_query = _rewritten_query_or_input(case.query, trace)
             metric_eligible = _is_metric_eligible(case=case, contexts=contexts)
+            agent_meta = _extract_agent_metadata(trace)
+
+            # Web search provenance assertions for Category 9
+            web_chunks = [c for c in retrieved_chunks if c.get("provenance") == "web"]
+            local_chunks = [c for c in retrieved_chunks if c.get("provenance") != "web"]
 
             row: dict[str, Any] = {
                 "id": case.id,
@@ -474,6 +581,13 @@ def run_ragas_evaluation(
                 "source_assertion_pass": source_pass,
                 "safe_fail_assertion_pass": (None if not case.expect_safe_fail else safe_fail_pass),
                 "rewrite_assertion_pass": (None if not case.expect_rewrite else rewrite_detected),
+                "agent_iterations": agent_meta["agent_iterations"],
+                "decomposition_applied": agent_meta["decomposition_applied"],
+                "subquery_count": agent_meta["subquery_count"],
+                "web_search_used": agent_meta["web_search_used"],
+                "web_chunk_count": len(web_chunks),
+                "local_chunk_count": len(local_chunks),
+                "actions_taken": agent_meta["actions_taken"],
                 "metrics": {},
                 "overall_score": None,
             }
@@ -482,7 +596,9 @@ def run_ragas_evaluation(
             print(
                 f"Completed {case.id}: retrieved={len(retrieved_chunks)}, "
                 f"metric_eligible={metric_eligible}, "
-                f"safe_fail_pass={row['safe_fail_assertion_pass']}"
+                f"safe_fail_pass={row['safe_fail_assertion_pass']}, "
+                f"iterations={agent_meta['agent_iterations']}, "
+                f"web_search={agent_meta['web_search_used']}"
             )
 
             if metric_eligible:
@@ -653,6 +769,17 @@ def _category_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             else None
         )
 
+        # Agentic metrics per category
+        iteration_values = [
+            item["agent_iterations"] for item in items
+            if isinstance(item.get("agent_iterations"), (int, float))
+        ]
+        mean_iterations = (
+            sum(iteration_values) / len(iteration_values) if iteration_values else None
+        )
+        decomp_count = sum(1 for item in items if item.get("decomposition_applied"))
+        web_search_count = sum(1 for item in items if item.get("web_search_used"))
+
         summary.append(
             {
                 "category": category,
@@ -667,6 +794,10 @@ def _category_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "mean_faithfulness": ragas_means["faithfulness"],
                 "mean_answer_relevancy": ragas_means["answer_relevancy"],
                 "mean_context_recall": ragas_means["context_recall"],
+                # Agentic metrics per category
+                "mean_agent_iterations": mean_iterations,
+                "decomposition_used_count": decomp_count,
+                "web_search_used_count": web_search_count,
                 # Unified overall score combining all metrics
                 "overall_category_score": overall_category_score,
             }
@@ -695,7 +826,10 @@ def write_markdown_summary(report: dict[str, Any], *, output_path: Path) -> None
             f"- {category}: count={count}, "
             f"source_pass={item.get('source_pass_rate')}, "
             f"safe_fail_pass={item.get('safe_fail_pass_rate')}, "
-            f"rewrite_pass={item.get('rewrite_pass_rate')}"
+            f"rewrite_pass={item.get('rewrite_pass_rate')}, "
+            f"mean_iterations={item.get('mean_agent_iterations')}, "
+            f"decomp={item.get('decomposition_used_count')}, "
+            f"web_search={item.get('web_search_used_count')}"
         )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

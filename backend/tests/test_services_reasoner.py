@@ -205,7 +205,7 @@ def test_synthesize_answer_uses_source_diverse_evidence_selection() -> None:
     assert citation_ids == ["rag-0001"]
     assert len(llm.prompts) >= 1
     synthesis_prompt = llm.prompts[-1]
-    assert "1-3 concise sentences" in synthesis_prompt
+    assert "2-4 sentences" in synthesis_prompt
     assert "cite every source" in synthesis_prompt
     assert "[rag-0001]" in synthesis_prompt
     assert "[bert-0001]" in synthesis_prompt
@@ -294,3 +294,144 @@ def test_decompose_query_lightly_falls_back_on_invalid_payload() -> None:
     )
 
     assert sub_queries == ["Explain BERT architecture and pretraining"]
+
+
+def test_plan_agent_step_uses_llm_action_and_confidence() -> None:
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient(
+            '{"reasoning":"Evidence is good enough.","recommended_action":"finalize","confidence":0.82,"prompt_version":"v1.0.0"}'
+        ),
+    )
+
+    thought = reasoner.plan_agent_step(
+        query="Compare BERT and Transformer",
+        conversation_summary="",
+        rewritten_queries=["Compare BERT and Transformer"],
+        evidence_quality_score=0.77,
+        chunk_count=4,
+        agent_iterations=2,
+        max_iterations=5,
+        last_observation="Retrieved 4 chunk(s).",
+    )
+
+    assert thought.recommended_action == "finalize"
+    assert thought.confidence == 0.82
+    assert thought.reasoning == "Evidence is good enough."
+
+
+def test_plan_agent_step_normalizes_invalid_action_to_search_documents() -> None:
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient(
+            '{"reasoning":"Need more evidence.","recommended_action":"open_browser","confidence":0.61,"prompt_version":"v1.0.0"}'
+        ),
+    )
+
+    thought = reasoner.plan_agent_step(
+        query="What is BERT pretraining?",
+        conversation_summary="",
+        rewritten_queries=["What is BERT pretraining?"],
+        evidence_quality_score=0.2,
+        chunk_count=1,
+        agent_iterations=1,
+        max_iterations=5,
+        last_observation=None,
+    )
+
+    assert thought.recommended_action == "search_documents"
+
+
+# ====== Phase 5: Reasoner regression suites ======
+
+
+def test_plan_agent_step_accepts_subquery_statuses() -> None:
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient(
+            '{"reasoning":"First subquery needs evidence.","recommended_action":"search_documents","confidence":0.8,"target_subquery_index":0,"prompt_version":"v1.0.0"}'
+        ),
+    )
+
+    thought = reasoner.plan_agent_step(
+        query="Compare BERT and GPT",
+        conversation_summary="",
+        rewritten_queries=["What is BERT?", "What is GPT?"],
+        evidence_quality_score=0.3,
+        chunk_count=1,
+        agent_iterations=1,
+        max_iterations=5,
+        last_observation="Retrieved 1 chunk(s) for subquery[0].",
+        subquery_statuses=[
+            {"query": "What is BERT?", "status": "retrieved", "quality_score": 0.4, "chunk_ids": ["b-0001"]},
+            {"query": "What is GPT?", "status": "pending", "quality_score": 0.0, "chunk_ids": []},
+        ],
+    )
+
+    assert thought.recommended_action == "search_documents"
+    assert thought.target_subquery_index == 0
+    assert thought.confidence == 0.8
+
+
+def test_plan_agent_step_returns_target_subquery_index_for_finalize() -> None:
+    reasoner = QueryReasoner(
+        settings=_settings(),
+        llm_client=_CaptureStubLLMClient(
+            '{"reasoning":"All evidence collected.","recommended_action":"finalize","confidence":0.95,"prompt_version":"v1.0.0"}'
+        ),
+    )
+
+    thought = reasoner.plan_agent_step(
+        query="What is BERT?",
+        conversation_summary="",
+        rewritten_queries=["What is BERT?"],
+        evidence_quality_score=0.8,
+        chunk_count=5,
+        agent_iterations=2,
+        max_iterations=5,
+        subquery_statuses=[
+            {"query": "What is BERT?", "status": "sufficient", "quality_score": 0.85, "chunk_ids": ["b-0001"]},
+        ],
+    )
+
+    assert thought.recommended_action == "finalize"
+    assert thought.confidence == 0.95
+    assert thought.target_subquery_index is None  # No target needed for finalize
+
+
+def test_normalize_agent_action_web_search() -> None:
+    assert QueryReasoner._normalize_agent_action("web_search") == "web_search"
+    assert QueryReasoner._normalize_agent_action("web") == "web_search"
+    assert QueryReasoner._normalize_agent_action("internet") == "web_search"
+    assert QueryReasoner._normalize_agent_action("external_search") == "web_search"
+    # Unknown actions fall back to search_documents
+    assert QueryReasoner._normalize_agent_action("open_browser") == "search_documents"
+
+
+def test_plan_agent_step_subquery_context_in_prompt() -> None:
+    """Verify the planner prompt includes subquery status context."""
+    llm = _CaptureStubLLMClient(
+        '{"reasoning":"Check pending.","recommended_action":"search_documents","confidence":0.7,"target_subquery_index":1,"prompt_version":"v1.0.0"}'
+    )
+    reasoner = QueryReasoner(settings=_settings(), llm_client=llm)
+
+    reasoner.plan_agent_step(
+        query="Compare X and Y",
+        conversation_summary="",
+        rewritten_queries=["What is X?", "What is Y?"],
+        evidence_quality_score=0.4,
+        chunk_count=2,
+        agent_iterations=1,
+        max_iterations=5,
+        subquery_statuses=[
+            {"query": "What is X?", "status": "retrieved", "quality_score": 0.6, "chunk_ids": ["x-0001"]},
+            {"query": "What is Y?", "status": "pending", "quality_score": 0.0, "chunk_ids": []},
+        ],
+    )
+
+    assert len(llm.prompts) >= 1
+    prompt = llm.prompts[-1]
+    assert "What is X?" in prompt
+    assert "What is Y?" in prompt
+    assert "pending" in prompt
+    assert "retrieved" in prompt

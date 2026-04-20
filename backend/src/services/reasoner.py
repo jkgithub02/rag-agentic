@@ -5,6 +5,7 @@ from typing import TypeVar
 
 from src.core.config import Settings
 from src.core.models import (
+    AgentThought,
     AnswerSynthesisOutput,
     EvidenceChunk,
     GroundingCheckOutput,
@@ -13,6 +14,7 @@ from src.core.models import (
     QueryAnalysisOutput,
 )
 from src.core.prompts import (
+    agent_step_planning_prompt,
     answer_prompt,
     conversation_summary_prompt,
     query_decomposition_prompt,
@@ -150,6 +152,7 @@ class QueryReasoner:
         *,
         query: str,
         chunks: list[EvidenceChunk],
+        subqueries: list[str] | None = None,
     ) -> tuple[str, list[str], str, str | None]:
         if not self._settings.reasoning_enabled:
             raise LLMInvocationError("Reasoning is disabled but synthesize_answer was invoked.")
@@ -161,7 +164,14 @@ class QueryReasoner:
         if not evidence_block:
             evidence_block = "- No evidence snippets available."
 
-        prompt = answer_prompt(query=query, evidence=evidence_block)
+        # Add subquery context to prompt if decomposition was used
+        if subqueries and len(subqueries) > 1:
+            subquery_context = "\n".join(f"  {i+1}. {sq}" for i, sq in enumerate(subqueries))
+            query_text = f"{query}\n\nThis question was decomposed into:\n{subquery_context}\n\nAddress each part in your answer."
+        else:
+            query_text = query
+
+        prompt = answer_prompt(query=query_text, evidence=evidence_block)
 
         output = self._invoke_structured(prompt, AnswerSynthesisOutput)
         answer = output.answer.strip()
@@ -184,7 +194,7 @@ class QueryReasoner:
         if not chunks:
             return []
 
-        # Prefer cross-source coverage before adding extra chunks from the same source.
+        # Prioritize high-score chunks first (top 4), then enforce diversity
         selected: list[EvidenceChunk] = []
         seen_ids: set[str] = set()
         source_counts: dict[str, int] = {}
@@ -196,22 +206,15 @@ class QueryReasoner:
                 break
             if chunk.chunk_id in seen_ids:
                 continue
-            if source_counts.get(chunk.source, 0) > 0:
-                continue
-            selected.append(chunk)
-            seen_ids.add(chunk.chunk_id)
-            source_counts[chunk.source] = 1
-
-        for chunk in chunks:
-            if len(selected) >= max_chunks:
-                break
-            if chunk.chunk_id in seen_ids:
-                continue
-            if source_counts.get(chunk.source, 0) >= max_per_source:
-                continue
-            selected.append(chunk)
-            seen_ids.add(chunk.chunk_id)
-            source_counts[chunk.source] = source_counts.get(chunk.source, 0) + 1
+            # Take first 4 chunks by score, then enforce source diversity
+            if len(selected) < 4 or source_counts.get(chunk.source, 0) == 0:
+                selected.append(chunk)
+                seen_ids.add(chunk.chunk_id)
+                source_counts[chunk.source] = source_counts.get(chunk.source, 0) + 1
+            elif source_counts.get(chunk.source, 0) < max_per_source:
+                selected.append(chunk)
+                seen_ids.add(chunk.chunk_id)
+                source_counts[chunk.source] = source_counts.get(chunk.source, 0) + 1
 
         return selected
 
@@ -379,3 +382,85 @@ class QueryReasoner:
             return cleaned or [query.strip()]
         except Exception:
             return [query.strip()]
+
+    def plan_agent_step(
+        self,
+        *,
+        query: str,
+        conversation_summary: str | None,
+        rewritten_queries: list[str],
+        evidence_quality_score: float,
+        chunk_count: int,
+        agent_iterations: int,
+        max_iterations: int,
+        last_observation: str | None = None,
+        subquery_statuses: list[dict[str, object]] | None = None,
+    ) -> AgentThought:
+        if not self._settings.reasoning_enabled:
+            return AgentThought(
+                reasoning="Reasoning disabled; defaulting to document search.",
+                recommended_action="search_documents",
+                confidence=0.0,
+            )
+
+        prompt = agent_step_planning_prompt(
+            query=query,
+            conversation_summary=conversation_summary,
+            rewritten_queries=rewritten_queries,
+            evidence_quality_score=evidence_quality_score,
+            chunk_count=chunk_count,
+            agent_iterations=agent_iterations,
+            max_iterations=max_iterations,
+            last_observation=last_observation,
+            subquery_statuses=subquery_statuses,
+        )
+        try:
+            parsed = self._invoke_structured_raw(prompt)
+        except Exception:
+            return AgentThought(
+                reasoning="Planner unavailable; defaulting to document search.",
+                recommended_action="search_documents",
+                confidence=0.0,
+            )
+
+        raw_reasoning = parsed.get("reasoning")
+        reasoning = raw_reasoning.strip() if isinstance(raw_reasoning, str) and raw_reasoning.strip() else "Plan next step using available evidence."
+
+        raw_action = parsed.get("recommended_action")
+        action = self._normalize_agent_action(raw_action)
+
+        raw_confidence = parsed.get("confidence")
+        try:
+            confidence = float(raw_confidence)
+        except Exception:
+            confidence = 0.0
+        confidence = min(max(confidence, 0.0), 1.0)
+
+        raw_target = parsed.get("target_subquery_index")
+        target_subquery_index: int | None = None
+        if raw_target is not None:
+            try:
+                target_subquery_index = int(raw_target)
+            except (TypeError, ValueError):
+                pass
+
+        return AgentThought(
+            reasoning=reasoning,
+            recommended_action=action,
+            confidence=confidence,
+            target_subquery_index=target_subquery_index,
+        )
+
+    @staticmethod
+    def _normalize_agent_action(value: object) -> str:
+        if not isinstance(value, str):
+            return "search_documents"
+
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        if normalized in {"search_documents", "search", "retrieve", "retrieval"}:
+            return "search_documents"
+        if normalized in {"web_search", "web", "internet", "external_search"}:
+            return "web_search"
+        if normalized in {"finalize", "finish", "complete", "done"}:
+            return "finalize"
+        return "search_documents"

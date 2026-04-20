@@ -29,7 +29,6 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
     graph.add_node("agent_think", nodes.agent_think)
     graph.add_node("agent_act", nodes.agent_act)
     graph.add_node("agent_reflect", nodes.agent_reflect)
-    graph.add_node("retrieve", nodes.retrieve)
     graph.add_node("should_compress_context", nodes.should_compress_context)
     graph.add_node("compress_context", nodes.compress_context)
     graph.add_node("fallback_response", nodes.fallback_response)
@@ -52,19 +51,10 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
         edges.route_after_detect_query_type,
         {
             "prepare_decomposition": "prepare_decomposition",
-            "agent_initialize": "agent_initialize",
-            "retrieve": "retrieve",
             "finish": "finish",
         },
     )
-    graph.add_conditional_edges(
-        "prepare_decomposition",
-        edges.route_after_prepare_decomposition,
-        {
-            "agent_initialize": "agent_initialize",
-            "retrieve": "retrieve",
-        },
-    )
+    graph.add_edge("prepare_decomposition", "agent_initialize")
     graph.add_edge("agent_initialize", "agent_think")
     graph.add_edge("agent_think", "agent_act")
     graph.add_edge("agent_act", "agent_reflect")
@@ -76,7 +66,6 @@ def build_pipeline_graph(*, nodes: PipelineNodes, edges: PipelineEdges):
             "should_compress_context": "should_compress_context",
         },
     )
-    graph.add_edge("retrieve", "should_compress_context")
     graph.add_conditional_edges(
         "should_compress_context",
         edges.route_after_should_compress,
