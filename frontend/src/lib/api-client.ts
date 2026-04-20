@@ -102,6 +102,13 @@ export async function askQuestionStream(
                 case "thinking":
                     onEvent({ type: "thinking", status: String(payload.status ?? "running") });
                     break;
+                case "stage":
+                    onEvent({
+                        type: "stage",
+                        stage: String(payload.stage ?? ""),
+                        ...payload,
+                    });
+                    break;
                 case "done":
                     onEvent({
                         type: "done",

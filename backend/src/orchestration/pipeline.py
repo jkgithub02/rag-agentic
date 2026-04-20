@@ -37,16 +37,28 @@ class AgenticPipeline:
         self._edges = PipelineEdges(settings=settings)
         self._graph = build_pipeline_graph(nodes=self._nodes, edges=self._edges)
 
-    def ask(self, query: str, *, thread_id: str | None = None) -> AskResponse:
+    def ask(
+        self,
+        query: str,
+        *,
+        thread_id: str | None = None,
+        progress_callback: object | None = None,
+    ) -> AskResponse:
+        # Attach progress callback to nodes for SSE streaming
+        if progress_callback is not None:
+            self._nodes._progress_callback = progress_callback
         run_thread_id = thread_id or str(uuid4())
         history = list(self._load_thread_history(run_thread_id))
-        state = self._graph.invoke(
-            {
-                "query": query,
-                "history": history,
-            },
-            config={"configurable": {"thread_id": run_thread_id}},
-        )
+        try:
+            state = self._graph.invoke(
+                {
+                    "query": query,
+                    "history": history,
+                },
+                config={"configurable": {"thread_id": run_thread_id}},
+            )
+        finally:
+            self._nodes._progress_callback = None
         state = self._coerce_interrupted_clarification_state(state)
         trace: PipelineTrace = state["trace"]
         self._trace_store.save(trace)

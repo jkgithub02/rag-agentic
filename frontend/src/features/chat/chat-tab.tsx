@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { askQuestionStream, checkBackendHealth, getTrace } from "@/lib/api-client";
-import { type PipelineTrace } from "@/lib/types";
+import { type PipelineStageInfo, type PipelineTrace } from "@/lib/types";
 
 const CHAT_HISTORY_KEY = "agentic_rag_chat_history_v1";
 
@@ -20,38 +20,13 @@ interface ChatMessage {
     citations?: string[];
     traceId?: string;
     safeFail?: boolean;
+    stages?: PipelineStageInfo[];
 }
 
 interface ChatHistorySession {
     threadId: string;
     updatedAt: string;
     messages: ChatMessage[];
-}
-
-function extractRewriteMetadata(trace: PipelineTrace): {
-    clarifyNeeded: boolean | null;
-    clarifyReason: string | null;
-    rewriteSource: string | null;
-} {
-    const rewriteEvent = trace.events.find((event) => event.stage === "rewrite_query");
-    if (!rewriteEvent) {
-        return {
-            clarifyNeeded: null,
-            clarifyReason: null,
-            rewriteSource: null,
-        };
-    }
-
-    const payload = rewriteEvent.payload;
-    const clarifyNeeded = typeof payload.clarify_needed === "boolean" ? payload.clarify_needed : null;
-    const clarifyReason = typeof payload.clarify_reason === "string" ? payload.clarify_reason : null;
-    const rewriteSource = typeof payload.rewrite_source === "string" ? payload.rewrite_source : null;
-
-    return {
-        clarifyNeeded,
-        clarifyReason,
-        rewriteSource,
-    };
 }
 
 function NewChatIcon() {
@@ -94,20 +69,145 @@ function ExportIcon() {
     );
 }
 
-function AnimatedLoadingIndicator() {
-    const [dotCount, setDotCount] = useState(1);
+const STAGE_LABELS: Record<string, string> = {
+    rewrite_query: "Analyzing query",
+    detect_query_type: "Classifying query",
+    prepare_decomposition: "Decomposing query",
+    agent_think: "Planning next step",
+    retrieve: "Searching documents",
+    agent_act: "Executing action",
+    agent_reflect: "Evaluating evidence",
+    validate: "Validating results",
+    generate: "Generating answer",
+    verify_grounding: "Verifying grounding",
+    tool_web_search: "Searching the web",
+    tool_fetch_chunks_by_ids: "Fetching evidence",
+    compress_context: "Compressing context",
+    answer: "Finalizing",
+};
 
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setDotCount((prev) => (prev % 5) + 1);
-        }, 500);
-        return () => clearInterval(interval);
-    }, []);
+function PipelineProgressIndicator({ stages }: { stages: PipelineStageInfo[] }) {
+    const completed = stages.filter((s) => s.status === "completed");
+    const active = stages.find((s) => s.status === "active");
+
+    if (completed.length === 0 && !active) {
+        return <div className="text-sm text-[var(--ink-muted)]">Thinking...</div>;
+    }
 
     return (
-        <div className="text-sm text-[var(--ink-muted)]">
-            Thinking{".".repeat(dotCount)}
+        <div className="space-y-1">
+            {completed.map((s, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+                    <span className="text-emerald-500">&#10003;</span>
+                    <span>{STAGE_LABELS[s.stage] || s.stage}</span>
+                </div>
+            ))}
+            {active && (
+                <div className="flex items-center gap-2 text-xs text-[var(--ink)]">
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
+                    <span className="font-medium">{STAGE_LABELS[active.stage] || active.stage}</span>
+                </div>
+            )}
         </div>
+    );
+}
+
+function PipelineTracePanel({ trace }: { trace: PipelineTrace }) {
+    const rewriteEvent = trace.events.find((e) => e.stage === "rewrite_query");
+    const decompEvent = trace.events.find((e) => e.stage === "prepare_decomposition");
+    const agentThinks = trace.events.filter((e) => e.stage === "agent_think");
+    const retrieves = trace.events.filter((e) => e.stage === "retrieve");
+    const validates = trace.events.filter((e) => e.stage === "validate");
+    const generateEvent = trace.events.find((e) => e.stage === "generate");
+    const groundingEvent = trace.events.find((e) => e.stage === "verify_grounding");
+    const queryWasRewritten = trace.original_query !== trace.rewritten_query;
+
+    const totalChunks = retrieves.reduce((sum, e) => {
+        const hits = e.payload.hits;
+        return sum + (Array.isArray(hits) ? hits.length : 0);
+    }, 0);
+
+    return (
+        <details className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--paper)]">
+            <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)]">
+                Pipeline details ({trace.events.length} stages)
+            </summary>
+            <div className="space-y-3 px-3 pb-3 text-[11px] text-[var(--ink-muted)]">
+                {/* Query Understanding */}
+                {queryWasRewritten && (
+                    <div>
+                        <p className="font-semibold text-[var(--ink)]">Query Understanding</p>
+                        <p><span className="font-medium">Original:</span> {trace.original_query}</p>
+                        <p><span className="font-medium">Rewritten:</span> {trace.rewritten_query}</p>
+                        {rewriteEvent?.payload.rewrite_source != null && (
+                            <p><span className="font-medium">Source:</span> {String(rewriteEvent.payload.rewrite_source)}</p>
+                        )}
+                    </div>
+                )}
+
+                {/* Decomposition */}
+                {decompEvent && decompEvent.payload.applied === true && (
+                    <div>
+                        <p className="font-semibold text-[var(--ink)]">Query Decomposition</p>
+                        <p>{String(decompEvent.payload.query_count || 0)} sub-queries created</p>
+                    </div>
+                )}
+
+                {/* Agent Reasoning */}
+                {agentThinks.length > 0 && (
+                    <div>
+                        <p className="font-semibold text-[var(--ink)]">Agent Reasoning ({agentThinks.length} iteration{agentThinks.length !== 1 ? "s" : ""})</p>
+                        {agentThinks.map((t, i) => (
+                            <div key={i} className="ml-2 mt-1 border-l-2 border-[var(--line)] pl-2">
+                                <p className="font-medium">Step {i + 1}: {String(t.payload.recommended_action || "thinking")}</p>
+                                {t.payload.reasoning != null && (
+                                    <p className="italic">{String(t.payload.reasoning).slice(0, 150)}</p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Retrieval */}
+                {totalChunks > 0 && (
+                    <div>
+                        <p className="font-semibold text-[var(--ink)]">Evidence Retrieved</p>
+                        <p>{totalChunks} chunk{totalChunks !== 1 ? "s" : ""} across {retrieves.length} retrieval{retrieves.length !== 1 ? "s" : ""}</p>
+                    </div>
+                )}
+
+                {/* Validation */}
+                {validates.length > 0 && (
+                    <div>
+                        <p className="font-semibold text-[var(--ink)]">Validation</p>
+                        <p>Status: {String(validates[0].payload.status)} (confidence: {String(validates[0].payload.confidence)})</p>
+                    </div>
+                )}
+
+                {/* Generation */}
+                {generateEvent && (
+                    <div>
+                        <p className="font-semibold text-[var(--ink)]">Answer Generation</p>
+                        <p>Safe fail: {String(generateEvent.payload.safe_fail)}</p>
+                    </div>
+                )}
+
+                {/* Grounding */}
+                {groundingEvent && (
+                    <div>
+                        <p className="font-semibold text-[var(--ink)]">Grounding Verification</p>
+                        <p>Status: <span className={
+                            groundingEvent.payload.status === "supported" ? "text-emerald-600 font-medium" :
+                            groundingEvent.payload.status === "partial" ? "text-amber-600 font-medium" :
+                            "text-rose-600 font-medium"
+                        }>{String(groundingEvent.payload.status)}</span></p>
+                        {groundingEvent.payload.reason != null && (
+                            <p className="italic">{String(groundingEvent.payload.reason)}</p>
+                        )}
+                    </div>
+                )}
+            </div>
+        </details>
     );
 }
 
@@ -352,9 +452,27 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
                     const target = { ...next[index] };
                     if (event.type === "delta") {
                         target.content = `${target.content}${event.text}`;
+                    } else if (event.type === "stage") {
+                        const prevStages = (target.stages || []).map((s) =>
+                            s.status === "active" ? { ...s, status: "completed" as const } : s,
+                        );
+                        target.stages = [
+                            ...prevStages,
+                            {
+                                stage: event.stage,
+                                detail: event as unknown as Record<string, unknown>,
+                                status: "active",
+                            },
+                        ];
                     } else if (event.type === "thinking") {
-                        // Keep the dedicated thinking indicator visible while waiting for first token.
+                        // Keep the progress indicator visible while waiting for first token.
                     } else if (event.type === "done") {
+                        // Mark any remaining active stage as completed
+                        if (target.stages) {
+                            target.stages = target.stages.map((s) =>
+                                s.status === "active" ? { ...s, status: "completed" as const } : s,
+                            );
+                        }
                         target.citations = event.citations;
                         target.traceId = event.trace_id;
                         target.safeFail = event.safe_fail;
@@ -500,48 +618,55 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
 
                             {message.role === "assistant" && message.citations && message.citations.length > 0 ? (
                                 <ul className="mt-3 flex flex-wrap gap-2">
-                                    {message.citations.map((citation) => (
-                                        <li
-                                            key={`${message.id}-${citation}`}
-                                            className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-[11px]"
-                                        >
-                                            {citation}
-                                        </li>
-                                    ))}
+                                    {message.citations.map((citation) => {
+                                        // Check if citation is a web URL
+                                        const isWebUrl = citation.startsWith("http://") || citation.startsWith("https://");
+                                        if (isWebUrl) {
+                                            // Extract URL and chunk_id from "url#chunk_id"
+                                            const [url, chunkId] = citation.split("#");
+                                            try {
+                                                const domain = new URL(url).hostname.replace("www.", "");
+                                                const displayText = chunkId ? `${domain} (${chunkId})` : domain;
+                                                return (
+                                                    <li key={`${message.id}-${citation}`}>
+                                                        <a
+                                                            href={url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-block rounded-full border border-blue-300 bg-blue-50 px-2 py-1 text-[11px] text-blue-700 hover:bg-blue-100 hover:border-blue-400"
+                                                            title={url}
+                                                        >
+                                                            🌐 {displayText}
+                                                        </a>
+                                                    </li>
+                                                );
+                                            } catch {
+                                                // Fallback if URL parsing fails
+                                                return (
+                                                    <li
+                                                        key={`${message.id}-${citation}`}
+                                                        className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-[11px]"
+                                                    >
+                                                        {citation}
+                                                    </li>
+                                                );
+                                            }
+                                        }
+                                        // Local document citation
+                                        return (
+                                            <li
+                                                key={`${message.id}-${citation}`}
+                                                className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-[11px]"
+                                            >
+                                                📄 {citation}
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             ) : null}
 
                             {message.role === "assistant" && message.traceId && tracesById[message.traceId] ? (
-                                <div className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-[11px] text-[var(--ink-muted)]">
-                                    {(() => {
-                                        const trace = tracesById[message.traceId];
-                                        const metadata = extractRewriteMetadata(trace);
-                                        const queryWasRewritten = trace.original_query !== trace.rewritten_query;
-
-                                        return (
-                                            <div className="space-y-2">
-                                                {queryWasRewritten && (
-                                                    <div>
-                                                        <p className="mb-1 text-[10px] font-semibold text-[var(--ink)]">Understanding</p>
-                                                        <p className="text-[11px]">
-                                                            <span className="font-semibold">Your question:</span> {trace.original_query}
-                                                        </p>
-                                                        <p className="mt-1 text-[11px]">
-                                                            <span className="font-semibold">What I searched:</span> {trace.rewritten_query}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                                {metadata.clarifyNeeded && metadata.clarifyReason && (
-                                                    <div>
-                                                        <p className="text-[11px]">
-                                                            <span className="font-semibold">Note:</span> {metadata.clarifyReason}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
+                                <PipelineTracePanel trace={tracesById[message.traceId]} />
                             ) : null}
                         </article>
                     )
@@ -549,7 +674,7 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
 
                 {isLoading ? (
                     <div className="max-w-[90%] rounded-2xl bg-white px-4 py-3 text-sm text-[var(--ink-muted)] shadow-sm">
-                        <AnimatedLoadingIndicator />
+                        <PipelineProgressIndicator stages={messages[messages.length - 1]?.stages || []} />
                     </div>
                 ) : null}
             </div>

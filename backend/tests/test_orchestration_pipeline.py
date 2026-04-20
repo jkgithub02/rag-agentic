@@ -240,8 +240,9 @@ class QueryEchoReasoner(FakeReasoner):
         query: str,
         chunks: list[EvidenceChunk],
         subqueries: list[str] | None = None,
+        force_answer: bool = False,
     ) -> tuple[str, list[str], str, str | None]:
-        del chunks, subqueries
+        del chunks, subqueries, force_answer
         return f"ANSWER_QUERY={query}", ["bert-0001"], "llm", "v1.0.0"
 
 
@@ -504,8 +505,9 @@ class GroundingNeedsCitedBertReasoner(FakeReasoner):
         query: str,
         chunks: list[EvidenceChunk],
         subqueries: list[str] | None = None,
+        force_answer: bool = False,
     ) -> tuple[str, list[str], str, str | None]:
-        del query, chunks, subqueries
+        del query, chunks, subqueries, force_answer
         return (
             "BERT uses bidirectional attention-style contextualization while Transformer defines scaled dot-product attention.",
             ["bert-0004"],
@@ -1782,9 +1784,9 @@ class DecompositionTrackingReasoner(FakeReasoner):
         return ["What is BERT architecture?", "What is BERT pretraining?"]
 
     def synthesize_answer(
-        self, *, query: str, chunks: list[EvidenceChunk], subqueries: list[str] | None = None
+        self, *, query: str, chunks: list[EvidenceChunk], subqueries: list[str] | None = None, force_answer: bool = False
     ):
-        del query, subqueries
+        del query, subqueries, force_answer
         if chunks:
             return "BERT has a transformer architecture and uses MLM pretraining.", [chunks[0].chunk_id], "llm", "v1.0.0"
         return "No evidence.", [], "llm", "v1.0.0"
@@ -1830,6 +1832,7 @@ def test_planner_web_search_action_executes_when_enabled() -> None:
         retrieval_top_k=3,
         min_relevance_score=0.1,
         web_search_enabled=True,
+        web_search_requires_local_evidence=False,
         agent_max_iterations=3,
         agent_evidence_quality_threshold=0.5,
     )

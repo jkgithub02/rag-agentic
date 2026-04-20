@@ -99,8 +99,9 @@ class FakeReasoner:
         query: str,
         chunks: list[EvidenceChunk],
         subqueries: list[str] | None = None,
+        force_answer: bool = False,
     ) -> tuple[str, list[str], str, str | None]:
-        del query, chunks, subqueries
+        del query, chunks, subqueries, force_answer
         return self._synthesis_answer, self._synthesis_chunk_ids, "llm", "v1.0.0"
 
     def assess_query_clarity(
@@ -151,8 +152,10 @@ class BrokenSynthesisReasoner(FakeReasoner):
         *,
         query: str,
         chunks: list[EvidenceChunk],
+        subqueries: list[str] | None = None,
+        force_answer: bool = False,
     ) -> tuple[str, list[str], str, str | None]:
-        del query, chunks
+        del query, chunks, subqueries, force_answer
         raise LLMInvocationError("synthesize_answer produced invalid citation ids.")
 
 

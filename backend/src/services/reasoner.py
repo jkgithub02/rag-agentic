@@ -153,6 +153,7 @@ class QueryReasoner:
         query: str,
         chunks: list[EvidenceChunk],
         subqueries: list[str] | None = None,
+        force_answer: bool = False,
     ) -> tuple[str, list[str], str, str | None]:
         if not self._settings.reasoning_enabled:
             raise LLMInvocationError("Reasoning is disabled but synthesize_answer was invoked.")
@@ -171,7 +172,7 @@ class QueryReasoner:
         else:
             query_text = query
 
-        prompt = answer_prompt(query=query_text, evidence=evidence_block)
+        prompt = answer_prompt(query=query_text, evidence=evidence_block, force_answer=force_answer)
 
         output = self._invoke_structured(prompt, AnswerSynthesisOutput)
         answer = output.answer.strip()

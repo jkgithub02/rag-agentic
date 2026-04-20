@@ -36,8 +36,10 @@ class StubReasoner:
         *,
         query: str,
         chunks: list[EvidenceChunk],
+        subqueries: list[str] | None = None,
+        force_answer: bool = False,
     ) -> tuple[str, list[str], str, str | None]:
-        del query
+        del query, subqueries, force_answer
         ids = [chunk.chunk_id for chunk in chunks[:1]]
         return "stub answer", ids, "llm", "v1.0.0"
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import json
+import queue
 import re
 import time
 
@@ -51,17 +52,41 @@ def ask_stream(
         return f"event: {event_name}\ndata: {json.dumps(data)}\n\n"
 
     def generate() -> object:
+        progress_queue: queue.Queue[dict[str, object]] = queue.Queue()
+
+        def on_progress(stage: str, summary: dict[str, object]) -> None:
+            progress_queue.put({"stage": stage, **summary})
+
         executor = ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(pipeline.ask, payload.query, thread_id=payload.thread_id)
+        future = executor.submit(
+            pipeline.ask, payload.query,
+            thread_id=payload.thread_id,
+            progress_callback=on_progress,
+        )
         try:
             yield event("start", {"trace_id": payload.thread_id or ""})
 
             while True:
                 try:
-                    response = future.result(timeout=0.25)
+                    response = future.result(timeout=0.15)
                     break
                 except TimeoutError:
+                    # Drain stage events from pipeline progress
+                    while not progress_queue.empty():
+                        try:
+                            stage_data = progress_queue.get_nowait()
+                            yield event("stage", stage_data)
+                        except queue.Empty:
+                            break
                     yield event("thinking", {"status": "running"})
+
+            # Drain remaining stage events after pipeline completes
+            while not progress_queue.empty():
+                try:
+                    stage_data = progress_queue.get_nowait()
+                    yield event("stage", stage_data)
+                except queue.Empty:
+                    break
 
             answer_text = response.answer
             token_delay = max(0.0, _settings.stream_token_delay_seconds)

@@ -23,9 +23,16 @@ export interface AskResponse {
 export type AskStreamEvent =
     | { type: "start"; trace_id?: string }
     | { type: "thinking"; status: string }
+    | { type: "stage"; stage: string; [key: string]: unknown }
     | { type: "delta"; text: string }
     | { type: "done"; citations: string[]; safe_fail: boolean; trace_id: string }
     | { type: "error"; message: string };
+
+export interface PipelineStageInfo {
+    stage: string;
+    detail: Record<string, unknown>;
+    status: "active" | "completed";
+}
 
 export interface DocumentRecord {
     filename: string;

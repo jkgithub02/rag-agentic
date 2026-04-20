@@ -26,12 +26,14 @@ class PipelineNodes:
         settings: Settings,
         tools: AgentTools,
         reasoner: QueryReasoner | None,
+        progress_callback: object | None = None,
     ) -> None:
         if reasoner is None:
             raise ValueError("PipelineNodes requires a QueryReasoner instance.")
         self._settings = settings
         self._tools = tools
         self._reasoner = reasoner
+        self._progress_callback = progress_callback
 
     def summarize_history(self, state: PipelineState) -> PipelineState:
         history = state.get("history", [])
@@ -225,15 +227,25 @@ class PipelineNodes:
             "trace": trace,
         }
 
+    _MULTI_PART_PATTERNS = (
+        " and how ", " and what ", " and then ", ", then ",
+        " compare ", " differences between ", " trace how ",
+        " evolved from ", " contrast ",
+    )
+
     def prepare_decomposition(self, state: PipelineState) -> PipelineState:
         trace = state["trace"]
         rewritten_query = state.get("rewritten_query", "")
         rewritten_queries = state.get("rewritten_queries") or [rewritten_query]
         complexity = str(state.get("query_complexity", "moderate")).lower()
 
+        # Heuristic: force decomposition for multi-part queries
+        query_lower = rewritten_query.lower()
+        force_decompose = any(p in query_lower for p in self._MULTI_PART_PATTERNS)
+
         should_decompose = (
             self._settings.enable_query_decomposition
-            and complexity == "complex"
+            and (complexity == "complex" or force_decompose)
             and bool(rewritten_query.strip())
         )
 
@@ -485,6 +497,20 @@ class PipelineNodes:
                 )
                 observations = [*state.get("agent_observations", []), observation]
                 self._event(trace, "agent_act", {"action": selected_action, "disabled": True})
+                return {"agent_observations": observations, "subquery_statuses": subquery_statuses, "trace": trace}
+
+            # Gate: only allow web search when local evidence already exists
+            existing_chunks = list(state.get("chunks") or [])
+            local_chunks = [c for c in existing_chunks if getattr(c, "provenance", "local") != "web"]
+            if self._settings.web_search_requires_local_evidence and len(local_chunks) == 0:
+                observation = AgentObservation(
+                    action=selected_action,
+                    success=False,
+                    quality_score=0.0,
+                    message="Web search blocked: no local document evidence to augment.",
+                )
+                observations = [*state.get("agent_observations", []), observation]
+                self._event(trace, "agent_act", {"action": selected_action, "blocked": True, "reason": "no_local_evidence"})
                 return {"agent_observations": observations, "subquery_statuses": subquery_statuses, "trace": trace}
 
             targeted_query = None
@@ -813,6 +839,25 @@ class PipelineNodes:
             )
             return {"answer": answer, "citations": [], "safe_fail": True, "trace": trace}
 
+        # Detect refusal on first attempt — retry with force if evidence is strong
+        chunks = state.get("chunks", [])
+        top_score = max((c.score for c in chunks), default=0.0)
+        safe_fail_msg = self._settings.safe_fail_message.lower()
+        answer_lower = answer.lower()
+        is_refusal = (
+            safe_fail_msg in answer_lower
+            or "do not have sufficient evidence" in answer_lower
+            or "cannot answer" in answer_lower
+            or "i don't have" in answer_lower
+        )
+        if top_score >= 0.7 and is_refusal:
+            try:
+                answer, citations, generation_source, prompt_version = self._generate_supported(
+                    state, force_answer=True
+                )
+            except Exception:
+                pass  # Keep first attempt
+
         self._event(
             trace,
             "generate",
@@ -904,9 +949,36 @@ class PipelineNodes:
                 best_idx = i
         return best_idx
 
-    @staticmethod
-    def _event(trace: PipelineTrace, stage: str, payload: dict[str, object]) -> None:
+    def _event(self, trace: PipelineTrace, stage: str, payload: dict[str, object]) -> None:
         trace.events.append(TraceEvent(stage=stage, payload=payload))
+        if self._progress_callback is not None:
+            try:
+                summary = self._summarize_stage(stage, payload)
+                self._progress_callback(stage, summary)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _summarize_stage(stage: str, payload: dict[str, object]) -> dict[str, object]:
+        if stage == "rewrite_query":
+            return {"rewritten": payload.get("rewritten", ""), "clarify_needed": payload.get("clarify_needed")}
+        if stage == "detect_query_type":
+            return {"complexity": payload.get("query_complexity", ""), "is_conversation": payload.get("is_conversation_query")}
+        if stage == "prepare_decomposition":
+            return {"applied": payload.get("applied"), "query_count": payload.get("query_count")}
+        if stage == "agent_think":
+            return {"reasoning": str(payload.get("reasoning", ""))[:120], "action": payload.get("recommended_action")}
+        if stage in ("retrieve", "agent_act"):
+            return {"chunks_found": payload.get("chunk_count", len(payload.get("hits", []))), "action": payload.get("action")}
+        if stage == "agent_reflect":
+            return {"quality_score": payload.get("quality_score"), "threshold": payload.get("threshold")}
+        if stage == "validate":
+            return {"status": payload.get("status"), "confidence": payload.get("confidence")}
+        if stage == "generate":
+            return {"safe_fail": payload.get("safe_fail")}
+        if stage == "verify_grounding":
+            return {"status": payload.get("status"), "is_refusal": payload.get("is_refusal")}
+        return {}
 
     def _generate_safe_fail(
         self, state: PipelineState
@@ -918,7 +990,7 @@ class PipelineNodes:
         return answer, response_source, prompt_version
 
     def _generate_supported(
-        self, state: PipelineState
+        self, state: PipelineState, force_answer: bool = False
     ) -> tuple[str, list[str], str, str | None]:
         chunks = state.get("chunks", [])
         chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
@@ -933,6 +1005,7 @@ class PipelineNodes:
                 query=query_for_generation,
                 chunks=chunks,
                 subqueries=subquery_texts,
+                force_answer=force_answer,
             )
         )
         citations = [

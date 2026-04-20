@@ -1,67 +1,67 @@
 {
-  "generated_at_utc": "2026-04-20T12:10:47.231627+00:00",
+  "generated_at_utc": "2026-04-20T13:02:12.529678+00:00",
   "api_url": "http://127.0.0.1:8000",
   "question_count": 36,
-  "factual_question_count": 11,
-  "behavioral_question_count": 25,
+  "factual_question_count": 9,
+  "behavioral_question_count": 27,
   "metrics": [
     "faithfulness",
     "answer_relevancy",
     "context_recall"
   ],
   "mean_scores": {
-    "faithfulness": 0.6071428571428571,
-    "answer_relevancy": 0.6723383029190753,
-    "context_recall": 0.7878787878787878
+    "faithfulness": 0.8703703703703703,
+    "answer_relevancy": 0.7043911849555344,
+    "context_recall": 0.9074074074074073
   },
   "valid_counts": {
-    "faithfulness": 10,
-    "answer_relevancy": 11,
-    "context_recall": 11
+    "faithfulness": 9,
+    "answer_relevancy": 9,
+    "context_recall": 9
   },
   "excluded_counts": {
-    "faithfulness": 1,
+    "faithfulness": 0,
     "answer_relevancy": 0,
     "context_recall": 0
   },
-  "overall_score": 0.6891199826469068,
+  "overall_score": 0.8273896542444374,
   "rows": [
     {
       "id": "C1-001",
       "category": "straightforward_factual",
       "input": "What problem does the Transformer architecture solve?",
-      "rewritten_query": "What problem does the Transformer architecture solve, particularly regarding sequential dependencies and RNN limitations?",
-      "generated_output": "The Transformer architecture solves the problem of processing sequential dependencies without relying on recurrent networks. Specifically, it eschews recurrence and instead relies on attention mechanisms to capture dependencies without regard to their distance in the input or output sequences [attention-is-all-you-need-pdf-0004]. This allows the model to process sequences more efficiently and in parallel, rather than sequentially as required by recurrent architectures.",
-      "chunks_retrieved_count": 17,
+      "rewritten_query": "What problem does the Transformer architecture solve?",
+      "generated_output": "The Transformer architecture solves the problem of sequential dependency in neural networks by eliminating the need for recurrent networks. Rather than relying on recurrence or convolution, the Transformer uses self-attention mechanisms to compute representations of input and output, allowing it to model dependencies without regard to their distance in sequences [attention-is-all-you-need-pdf-0006] [attention-is-all-you-need-pdf-0004]. This enables more efficient parallel processing and better capture of long-range dependencies compared to traditional RNN-based approaches.",
+      "chunks_retrieved_count": 20,
       "chunks_retrieved": [
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0004",
+          "chunk_id": "attention-is-all-you-need-pdf-0006",
           "source": "Attention is all you need.pdf",
-          "score": 1.0,
+          "score": 0.9193448965037008,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.645975740255263,
+          "score": 0.8749125686598027,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0009",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.3932941108961527,
+          "score": 0.5725001970178885,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0004",
+          "source": "Attention is all you need.pdf",
+          "score": 0.8453627156377637,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0027",
           "source": "Attention is all you need.pdf",
-          "score": 0.7734978582699223,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "attention-is-all-you-need-pdf-0006",
-          "source": "Attention is all you need.pdf",
-          "score": 0.7293169637070933,
+          "score": 0.6961645223076744,
           "provenance": "local"
         }
       ],
@@ -73,23 +73,23 @@
       "subquery_count": 1,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 17,
+      "local_chunk_count": 20,
       "actions_taken": [
         "search_documents"
       ],
       "metrics": {
         "faithfulness": 1.0,
-        "answer_relevancy": 0.7367646301955176,
+        "answer_relevancy": 0.7791358627237996,
         "context_recall": 1.0
       },
-      "overall_score": 0.9122548767318391
+      "overall_score": 0.9263786209079332
     },
     {
       "id": "C1-002",
       "category": "straightforward_factual",
       "input": "How many attention heads does the base Transformer model use?",
-      "rewritten_query": "attention heads base Transformer model configuration?",
-      "generated_output": "The base Transformer model uses 8 attention heads. This can be inferred from the evidence showing model configuration details where the base model is specified with 8 heads, as distinguished from the 'big' variant which uses 16 attention heads [chunk_id_0024].",
+      "rewritten_query": "base Transformer model attention heads configuration specifications?",
+      "generated_output": "The base Transformer model uses 8 attention heads. This can be inferred from the hyperparameter table in the 'Attention is all you need' paper, which shows configuration (C) with 8 heads as part of the base model specifications.",
       "chunks_retrieved_count": 19,
       "chunks_retrieved": [
         {
@@ -101,25 +101,25 @@
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7582305899559006,
+          "score": 0.7416773439656333,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.34983967607239075,
+          "score": 0.3902270082219226,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0024",
           "source": "Attention is all you need.pdf",
-          "score": 0.7329700439998865,
+          "score": 0.7301631104674959,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0021",
           "source": "Attention is all you need.pdf",
-          "score": 0.7070069862971384,
+          "score": 0.6819761522271497,
           "provenance": "local"
         }
       ],
@@ -136,52 +136,52 @@
         "search_documents"
       ],
       "metrics": {
-        "faithfulness": 0.5,
+        "faithfulness": 0.3333333333333333,
         "answer_relevancy": 1.0000000000000002,
         "context_recall": 1.0
       },
-      "overall_score": 0.8333333333333334
+      "overall_score": 0.7777777777777778
     },
     {
       "id": "C1-003",
       "category": "straightforward_factual",
       "input": "What optimizer was used to train the Transformer?",
-      "rewritten_query": "optimizer used to train Transformer model training methodology?",
-      "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
+      "rewritten_query": "What optimizer was used to train the Transformer model?",
+      "generated_output": "The original Transformer was trained using the Adam optimizer with a custom learning rate schedule [chunk_id_0020]. The learning rate was increased linearly for the first warmup_steps training steps, then decreased thereafter proportional to step_num^-0.5, according to the formula: lrate = d_model^-0.5 \u00b7 min(step_num^-0.5, step_num \u00b7 warmup_steps^-1.5).",
       "chunks_retrieved_count": 18,
       "chunks_retrieved": [
         {
           "chunk_id": "attention-is-all-you-need-pdf-0020",
           "source": "Attention is all you need.pdf",
-          "score": 0.8679670883675072,
+          "score": 0.8079041004365494,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0003",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.722924815690281,
+          "score": 0.7062639459497628,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0010",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.44932074412754985,
+          "score": 0.5609118313425178,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0022",
           "source": "Attention is all you need.pdf",
-          "score": 0.776937161016369,
+          "score": 0.768571793297691,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0027",
           "source": "Attention is all you need.pdf",
-          "score": 0.7388330632444743,
+          "score": 0.7124254228463718,
           "provenance": "local"
         }
       ],
-      "source_assertion_pass": false,
+      "source_assertion_pass": true,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
       "agent_iterations": 1,
@@ -194,48 +194,48 @@
         "search_documents"
       ],
       "metrics": {
-        "faithfulness": 0.0,
-        "answer_relevancy": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8943600387015304,
         "context_recall": 1.0
       },
-      "overall_score": 0.3333333333333333
+      "overall_score": 0.9647866795671768
     },
     {
       "id": "C1-004",
       "category": "straightforward_factual",
       "input": "What are the two tasks BERT is pretrained on?",
-      "rewritten_query": "BERT pretraining tasks Masked Language Model MLM Next Sentence Prediction NSP?",
-      "generated_output": "BERT is pretrained on two tasks: (1) Masked Language Modeling (MLM) and (2) Next Sentence Prediction (NSP). The evidence references ablation studies examining the effect of pre-training tasks and mentions comparisons to models without NSP, indicating these are the two core pretraining objectives for BERT.",
-      "chunks_retrieved_count": 17,
+      "rewritten_query": "BERT pretraining tasks Masked Language Modeling MLM Next Sentence Prediction NSP?",
+      "generated_output": "BERT is pretrained on two tasks: (1) masked language model and (2) next sentence prediction. The masked language model task involves predicting masked tokens in text, while the next sentence prediction task jointly pre-trains text-pair representations [chunk_id_0004].",
+      "chunks_retrieved_count": 19,
       "chunks_retrieved": [
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0003",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.9046879725131982,
+          "score": 0.9033744254688452,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0056",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.3540971598993759,
+          "score": 0.35620495560550564,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0032",
+          "chunk_id": "attention-is-all-you-need-pdf-0030",
           "source": "Attention is all you need.pdf",
-          "score": 0.3462192737883007,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0028",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.885915872409974,
+          "score": 0.3420399931091201,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0004",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8824110749290143,
+          "score": 0.8792226033980025,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0028",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.8659722416554778,
           "provenance": "local"
         }
       ],
@@ -247,111 +247,78 @@
       "subquery_count": 1,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 17,
+      "local_chunk_count": 19,
       "actions_taken": [
         "search_documents"
       ],
       "metrics": {
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9800308631946932,
+        "answer_relevancy": 0.9744687932707757,
         "context_recall": 1.0
       },
-      "overall_score": 0.9933436210648977
+      "overall_score": 0.9914895977569252
     },
     {
       "id": "C1-005",
       "category": "straightforward_factual",
       "input": "What is the difference between BERT Base and BERT Large?",
-      "rewritten_query": "differences between BERT Base and BERT Large architecture parameters layers?",
+      "rewritten_query": "differences between BERT Base and BERT Large model architectures parameters performance?",
       "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
-      "chunks_retrieved_count": 17,
-      "chunks_retrieved": [
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.9753162383894644,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "attention-is-all-you-need-pdf-0026",
-          "source": "Attention is all you need.pdf",
-          "score": 0.4039051704669372,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0063",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.3569595723970095,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0031",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8848097797772552,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0032",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8125806983946333,
-          "provenance": "local"
-        }
-      ],
+      "chunks_retrieved_count": 0,
+      "chunks_retrieved": [],
       "source_assertion_pass": false,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
+      "agent_iterations": 3,
+      "decomposition_applied": true,
+      "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 17,
+      "local_chunk_count": 0,
       "actions_taken": [
-        "search_documents"
+        "web_search",
+        "web_search",
+        "finalize"
       ],
-      "metrics": {
-        "faithfulness": 0.0,
-        "answer_relevancy": 0.0,
-        "context_recall": 1.0
-      },
-      "overall_score": 0.3333333333333333
+      "metrics": {},
+      "overall_score": null
     },
     {
       "id": "C1-006",
       "category": "straightforward_factual",
       "input": "What does the [CLS] token represent in BERT?",
-      "rewritten_query": "What does the [CLS] token represent in BERT and what is its function?",
-      "generated_output": "The [CLS] token is a special classification token that appears as the first token of every sequence in BERT. The final hidden state corresponding to this token is used as the aggregate representation of the entire sequence for classification tasks [chunk_id_0012].",
+      "rewritten_query": "What does the [CLS] token represent in BERT?",
+      "generated_output": "The [CLS] token is a special classification token that appears as the first token of every sequence in BERT [chunk_id_0012]. The final hidden state corresponding to this [CLS] token is used as the aggregate sequence representation for classification tasks [chunk_id_0012].",
       "chunks_retrieved_count": 19,
       "chunks_retrieved": [
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0012",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8416467621951567,
+          "score": 0.965966008077422,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0010",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.44099937258790634,
+          "score": 0.5345024958748312,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0036",
           "source": "Attention is all you need.pdf",
-          "score": 0.3734381784324336,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7762118352510523,
+          "score": 0.35940817386020213,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0008",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7721777510926775,
+          "score": 0.9330301700138968,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.8797053789809718,
           "provenance": "local"
         }
       ],
@@ -378,38 +345,38 @@
       "id": "C1-007",
       "category": "straightforward_factual",
       "input": "What two components make up the RAG model?",
-      "rewritten_query": "Two components of the RAG model: retriever and generator?",
-      "generated_output": "The RAG model consists of two components: (1) a retriever that retrieves the top K relevant documents based on the input, and (2) a generator that produces the output sequence probability for each retrieved document, with the final output being a marginalization over all retrieved documents.",
-      "chunks_retrieved_count": 16,
+      "rewritten_query": "two components of RAG model retriever generator?",
+      "generated_output": "The RAG model consists of two components: (1) a retriever that selects relevant documents, and (2) a generator that produces output based on the input and retrieved passage. These components are trained end-to-end together.",
+      "chunks_retrieved_count": 15,
       "chunks_retrieved": [
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0007",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.9351712089046578,
+          "score": 0.9858497492334382,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0033",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.2656101079860005,
+          "score": 0.40029107423168214,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0000",
+          "chunk_id": "attention-is-all-you-need-pdf-0023",
           "source": "Attention is all you need.pdf",
-          "score": 0.16977149817638193,
+          "score": 0.17700956991835154,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0008",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.8532794596634855,
+          "score": 0.9150092997601966,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0065",
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0006",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.8494487556776511,
+          "score": 0.8587828012575272,
           "provenance": "local"
         }
       ],
@@ -421,99 +388,76 @@
       "subquery_count": 1,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 16,
+      "local_chunk_count": 15,
       "actions_taken": [
         "search_documents"
       ],
       "metrics": {
         "faithfulness": 1.0,
-        "answer_relevancy": 0.897459979626071,
+        "answer_relevancy": 0.8206530437844295,
         "context_recall": 1.0
       },
-      "overall_score": 0.9658199932086903
+      "overall_score": 0.9402176812614765
     },
     {
       "id": "C1-008",
       "category": "straightforward_factual",
       "input": "What dataset was used to evaluate RAG?",
-      "rewritten_query": "datasets used to evaluate RAG retrieval-augmented generation?",
+      "rewritten_query": "What dataset was used to evaluate RAG?",
       "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
-      "chunks_retrieved_count": 3,
-      "chunks_retrieved": [
-        {
-          "chunk_id": "web-9109d16b",
-          "source": "https://arxiv.org/html/2411.19710v1",
-          "score": 0.9999609,
-          "provenance": "web"
-        },
-        {
-          "chunk_id": "web-534d191e",
-          "source": "https://developers.redhat.com/articles/2026/02/23/synthetic-data-rag-evaluation-why-your-rag-system-needs-better-testing",
-          "score": 0.99996054,
-          "provenance": "web"
-        },
-        {
-          "chunk_id": "web-f726049a",
-          "source": "https://www.reddit.com/r/LangChain/comments/1iq8vtb/best_practices_for_building_a_qa_dataset_to/",
-          "score": 0.99995637,
-          "provenance": "web"
-        }
-      ],
+      "chunks_retrieved_count": 0,
+      "chunks_retrieved": [],
       "source_assertion_pass": false,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
       "agent_iterations": 1,
       "decomposition_applied": false,
       "subquery_count": 1,
-      "web_search_used": true,
-      "web_chunk_count": 3,
+      "web_search_used": false,
+      "web_chunk_count": 0,
       "local_chunk_count": 0,
       "actions_taken": [
-        "web_search"
+        "finalize"
       ],
-      "metrics": {
-        "faithfulness": 0.0,
-        "answer_relevancy": 0.0,
-        "context_recall": 0.0
-      },
-      "overall_score": 0.0
+      "metrics": {},
+      "overall_score": null
     },
     {
       "id": "C1-009",
       "category": "straightforward_factual",
       "input": "What is the difference between RAG-Sequence and RAG-Token?",
-      "rewritten_query": "What is the difference between RAG-Sequence and RAG-Token in terms of marginalization and generation approach?",
-      "generated_output": "RAG-Sequence retrieves top K documents and generates the complete output sequence for each document before marginalizing, while RAG-Token marginalizes at the token level, allowing different retrieved documents to contribute to different tokens in the output sequence.",
+      "rewritten_query": "What is the difference between RAG-Sequence and RAG-Token retrieval-augmented generation approaches?",
+      "generated_output": "RAG-Sequence marginalizes over retrieved documents at the sequence level, using the same top-K documents to generate the entire output sequence. RAG-Token marginalizes at the token level, generating each token based on the input, previous tokens, and a retrieved passage, potentially using different documents for different tokens.",
       "chunks_retrieved_count": 19,
       "chunks_retrieved": [
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0007",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.8879125618625958,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.37054219555034157,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "attention-is-all-you-need-pdf-0013",
-          "source": "Attention is all you need.pdf",
-          "score": 0.27215945554943777,
-          "provenance": "local"
-        },
-        {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0008",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.86998443950978,
+          "score": 0.9093028059146948,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0011",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0012",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.3314060694944523,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0030",
+          "source": "Attention is all you need.pdf",
+          "score": 0.2119758065776377,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0007",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.7118896082284802,
+          "score": 0.872046507583795,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0001",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.8694468734694436,
           "provenance": "local"
         }
       ],
@@ -531,51 +475,51 @@
       ],
       "metrics": {
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9127098507596916,
+        "answer_relevancy": 0.8951845738877995,
         "context_recall": 1.0
       },
-      "overall_score": 0.9709032835865639
+      "overall_score": 0.9650615246292665
     },
     {
       "id": "C2-001",
       "category": "precise_attribution",
       "input": "What is the scaled dot-product formula used in attention?",
-      "rewritten_query": "scaled dot-product attention formula?",
-      "generated_output": "The scaled dot-product attention formula computes dot products of the query with all keys, divides each by \u221adk (where dk is the key dimension), and applies a softmax function to obtain the weights on the values [chunk_id_0009]. In practice, this is computed simultaneously on a set of queries packed together into a matrix Q, with keys and values also organized as matrices.",
+      "rewritten_query": "scaled dot-product attention formula computation with queries keys scaling softmax?",
+      "generated_output": "The scaled dot-product attention formula computes the dot products of the query with all keys, divides each by \u221adk (the square root of the key dimension), and applies a softmax function to obtain the weights on the values [chunk_id_0009]. In practice, this computation is performed simultaneously on a set of queries packed together into a matrix Q, with keys and values also organized as matrices.",
       "chunks_retrieved_count": 16,
       "chunks_retrieved": [
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0008",
+          "chunk_id": "attention-is-all-you-need-pdf-0009",
           "source": "Attention is all you need.pdf",
-          "score": 0.9713592075529988,
+          "score": 0.994563445127149,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.3242652423002762,
+          "score": 0.34359614146779777,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0022",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0044",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.24451487615381384,
+          "score": 0.26035088868955,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0009",
+          "chunk_id": "attention-is-all-you-need-pdf-0008",
           "source": "Attention is all you need.pdf",
-          "score": 0.8707856055972824,
+          "score": 0.8966029328327685,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0010",
           "source": "Attention is all you need.pdf",
-          "score": 0.8483784553657898,
+          "score": 0.8828231080197821,
           "provenance": "local"
         }
       ],
-      "source_assertion_pass": true,
+      "source_assertion_pass": false,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
       "agent_iterations": 1,
@@ -594,38 +538,38 @@
       "id": "C2-002",
       "category": "precise_attribution",
       "input": "What is DPR and which paper uses it?",
-      "rewritten_query": "What is Dense Passage Retrieval (DPR) and which paper employs it as a retrieval component?",
-      "generated_output": "DPR is a dense passage retrieval method that follows a bi-encoder architecture, where document representations are produced by a BERT document encoder and query representations are produced by a BERT query encoder [chunk_id_0009]. DPR is used in the paper 'Retrieval Augmented Generation for Knowledge-Intensive NLP Tasks,' where it serves as the retrieval component for accessing a dense vector index of Wikipedia [chunk_id_0009].",
+      "rewritten_query": "What is Dense Passage Retrieval (DPR) and which paper uses it as a retrieval component?",
+      "generated_output": "DPR is a dense passage retrieval method that follows a bi-encoder architecture, where document representations are produced by a BERT document encoder and query representations are produced by a BERT query encoder [chunk_id_0009]. DPR is used in the paper 'Retrieval Augmented Generation for Knowledge-Intensive NLP Tasks' as the retrieval component for their RAG model [chunk_id_0009].",
       "chunks_retrieved_count": 19,
       "chunks_retrieved": [
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0009",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.9355397915593995,
+          "score": 0.9352374073753067,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0022",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.34890144022008374,
+          "score": 0.3532090047349256,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0035",
           "source": "Attention is all you need.pdf",
-          "score": 0.24328529182598013,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0004",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.7114484272337258,
+          "score": 0.24296972597539404,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0018",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.6626724319695445,
+          "score": 0.7509363067589045,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0004",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.698339920785998,
           "provenance": "local"
         }
       ],
@@ -649,50 +593,52 @@
       "category": "precise_attribution",
       "input": "What is the next sentence prediction task?",
       "rewritten_query": "What is the Next Sentence Prediction (NSP) task and how does it work in BERT pre-training?",
-      "generated_output": "The Next Sentence Prediction (NSP) task is a pre-training objective where the model predicts whether a given sentence (sentence B) is the actual continuation of a previous sentence (sentence A). This task helps the model understand sentence relationships, which is useful for downstream tasks such as Question Answering.",
-      "chunks_retrieved_count": 17,
+      "generated_output": "The Next Sentence Prediction (NSP) task is a BERT pre-training objective where the model learns to predict whether sentence B is a valid continuation of sentence A [chunk_id_0015]. In terms of how NSP works, the model processes the concatenation of sentence A and a possible continuation (sentence B), and uses task-specific parameters\u2014specifically a vector whose dot product with the [CLS] token representation is normalized with a softmax layer\u2014to score each choice [chunk_id_0027]. NSP is designed to help BERT learn sentence relationships that are important for downstream tasks such as Question Answering (QA) [chunk_id_0015].",
+      "chunks_retrieved_count": 28,
       "chunks_retrieved": [
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0027",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.9293840532199044,
+          "score": 0.9662727424744795,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0037",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.4035833140623084,
+          "score": 0.4404659204277443,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0025",
+          "chunk_id": "attention-is-all-you-need-pdf-0032",
           "source": "Attention is all you need.pdf",
-          "score": 0.28981810398328833,
+          "score": 0.3457162094139267,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0015",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.9189872130772064,
+          "score": 0.9428923052129754,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0016",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0028",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.9029719146729998,
+          "score": 0.8816913790892986,
           "provenance": "local"
         }
       ],
       "source_assertion_pass": true,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
+      "agent_iterations": 3,
+      "decomposition_applied": true,
+      "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 17,
+      "local_chunk_count": 28,
       "actions_taken": [
+        "search_documents",
+        "search_documents",
         "search_documents"
       ],
       "metrics": {},
@@ -702,38 +648,38 @@
       "id": "C2-004",
       "category": "precise_attribution",
       "input": "What is the role of the decoder in the original sequence-to-sequence model?",
-      "rewritten_query": "decoder role in original sequence-to-sequence model?",
-      "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
+      "rewritten_query": "decoder role in original sequence-to-sequence model architecture and output generation?",
+      "generated_output": "The decoder in the original sequence-to-sequence model generates output tokens based on the input sequence and previously generated tokens. It uses encoder-decoder attention mechanisms to attend to the input sequence while generating the current token, allowing it to condition its output on the encoded representation of the input [chunk_id_0012].",
       "chunks_retrieved_count": 18,
       "chunks_retrieved": [
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0012",
+          "chunk_id": "attention-is-all-you-need-pdf-0006",
           "source": "Attention is all you need.pdf",
-          "score": 0.9593603015711238,
+          "score": 0.8936396215571923,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0007",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.6862376033035289,
+          "score": 0.5752628526587873,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0014",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.6306194745554115,
+          "score": 0.5385202659158892,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0013",
+          "chunk_id": "attention-is-all-you-need-pdf-0012",
           "source": "Attention is all you need.pdf",
-          "score": 0.8190156838157603,
+          "score": 0.8817283112156828,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0003",
           "source": "Attention is all you need.pdf",
-          "score": 0.8070090933747139,
+          "score": 0.8157158561828717,
           "provenance": "local"
         }
       ],
@@ -757,91 +703,37 @@
       "category": "cross_document_confusion",
       "input": "How is attention used in BERT vs the original Transformer?",
       "rewritten_query": "How is attention used in BERT compared to the original Transformer architecture?",
-      "generated_output": "BERT uses bidirectional self-attention while the original Transformer uses constrained (unidirectional) self-attention. Both reduce attention computation to constant operations for distant positions, but BERT's bidirectionality allows it to attend to context from both directions.",
-      "chunks_retrieved_count": 19,
+      "generated_output": "BERT uses bidirectional self-attention, allowing each token to attend to all other tokens in both directions, whereas the original Transformer uses an encoder-decoder architecture with constrained self-attention in the decoder where tokens can only attend to previous positions [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011]. The original Transformer reduces sequential dependencies to a constant number of operations through attention mechanisms, though at the cost of reduced effective resolution due to averaging attention-weighted positions [attention-is-all-you-need-pdf-0005]. The key difference is that BERT's bidirectional approach enables it to see context from both directions simultaneously, while the Transformer's decoder uses constrained attention to maintain autoregressive properties.",
+      "chunks_retrieved_count": 42,
       "chunks_retrieved": [
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0017",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 1.0,
+          "score": 0.9333559771606873,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0005",
           "source": "Attention is all you need.pdf",
-          "score": 0.7856143742639532,
+          "score": 0.8900742358832046,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053",
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0037",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.3928634349493145,
+          "score": 0.4561904725301956,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7812740468404215,
+          "score": 0.7959007960046565,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0017",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0046",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7755692398430181,
-          "provenance": "local"
-        }
-      ],
-      "source_assertion_pass": true,
-      "safe_fail_assertion_pass": null,
-      "rewrite_assertion_pass": null,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
-      "web_search_used": false,
-      "web_chunk_count": 0,
-      "local_chunk_count": 19,
-      "actions_taken": [
-        "search_documents"
-      ],
-      "metrics": {},
-      "overall_score": null
-    },
-    {
-      "id": "C3-002",
-      "category": "cross_document_confusion",
-      "input": "How does each paper handle tokenization?",
-      "rewritten_query": "Tokenization methods and parameters across BERT, Attention is All You Need, and RAG papers?",
-      "generated_output": "**BERT** uses WordPiece tokenization with a uniform masking rate of 15% and a maximum sequence length of 512 tokens [chunk_id_0050]. **Attention is All You Need** does not provide explicit tokenization details in the available evidence; the chunks reference beam search parameters and output length settings but not tokenization methodology [chunk_id_0027, chunk_id_0026]. **RAG (Retrieval Augmented Generation)** generates tokens sequentially based on previous tokens, the original input, and retrieved passages, but specific tokenization parameters are not detailed in the provided evidence [chunk_id_0007].",
-      "chunks_retrieved_count": 42,
-      "chunks_retrieved": [
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0050",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 1.0,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0007",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.3951172793074058,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "attention-is-all-you-need-pdf-0027",
-          "source": "Attention is all you need.pdf",
-          "score": 0.3638436285402344,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7872222054576574,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0012",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7267794087315242,
+          "score": 0.7567603032641604,
           "provenance": "local"
         }
       ],
@@ -863,54 +755,112 @@
       "overall_score": null
     },
     {
-      "id": "C3-003",
+      "id": "C3-002",
       "category": "cross_document_confusion",
-      "input": "What role does the encoder play across these three papers?",
-      "rewritten_query": "What is the role and function of the encoder across the Transformer architecture, BERT, and Retrieval-Augmented Generation papers?",
-      "generated_output": "The encoder plays a foundational role across these three papers. In the Transformer architecture [attention-is-all-you-need-pdf-0006], the encoder computes representations of input using self-attention mechanisms without relying on RNNs or convolutions. BERT [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010] uses a unified encoder architecture across different tasks with minimal difference between pre-training and downstream applications. In Retrieval Augmented Generation [retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0009], BERT encoders specifically serve as the backbone for both document and query encoding in the bi-encoder retrieval component, where BERTd produces dense document representations and BERTq produces query representations.",
-      "chunks_retrieved_count": 20,
+      "input": "How does each paper handle tokenization?",
+      "rewritten_query": "How does each paper handle tokenization? Compare tokenization methods across BERT, Attention is All You Need, and RAG papers.?",
+      "generated_output": "BERT uses WordPiece tokenization with a 30,000 token vocabulary, applying language model masking after tokenization with a uniform masking rate of 15% [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0012, bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0050]. The evidence provided does not contain specific details about tokenization methods used in the Attention is All You Need Transformer paper [attention-is-all-you-need-pdf-0031, attention-is-all-you-need-pdf-0032]. Similarly, the evidence for the RAG (Retrieval-Augmented Generation) paper does not include information about its tokenization approach [retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0036, retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0037].",
+      "chunks_retrieved_count": 45,
       "chunks_retrieved": [
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0050",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 1.0,
+          "score": 0.8525238710525391,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0006",
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0037",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.4937755894549447,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0032",
           "source": "Attention is all you need.pdf",
-          "score": 0.7893164400110085,
+          "score": 0.288982468235095,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0030",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.7582552257069195,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0000",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0012",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7927558485011305,
+          "score": 0.8328936438578888,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0009",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.7537723009101532,
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.7614386436178222,
           "provenance": "local"
         }
       ],
       "source_assertion_pass": true,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
+      "agent_iterations": 3,
+      "decomposition_applied": true,
+      "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 20,
+      "local_chunk_count": 45,
       "actions_taken": [
+        "search_documents",
+        "search_documents",
+        "search_documents"
+      ],
+      "metrics": {},
+      "overall_score": null
+    },
+    {
+      "id": "C3-003",
+      "category": "cross_document_confusion",
+      "input": "What role does the encoder play across these three papers?",
+      "rewritten_query": "Encoder role and function across Transformer architecture, BERT pre-training, and Retrieval Augmented Generation systems?",
+      "generated_output": "The encoder plays three distinct but complementary roles across these papers: (1) In the Transformer architecture, the encoder is composed of a stack of N=6 identical layers, each containing a multi-head self-attention mechanism and a position-wise feed-forward network, with multi-head attention allowing the model to jointly attend to information from different representation subspaces at different positions [chunk_id_0007, chunk_id_0011]. (2) In BERT, the encoder serves as a bidirectional pre-trained architecture with a unified design across different tasks, enabling effective transfer learning to downstream tasks with minimal architectural differences between pre-training and fine-tuning [chunk_id_0010]. (3) In Retrieval Augmented Generation systems, the BERT encoder generates dense vector representations that are used to retrieve relevant documents, as evidenced by the use of DPR (Dense Passage Retrieval) encoders in RAG models for knowledge-intensive NLP tasks [chunk_id_0029].",
+      "chunks_retrieved_count": 46,
+      "chunks_retrieved": [
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0011",
+          "source": "Attention is all you need.pdf",
+          "score": 0.9814190049037366,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.6364388369558898,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0030",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.37634112630977345,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0007",
+          "source": "Attention is all you need.pdf",
+          "score": 0.8578428663206485,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0006",
+          "source": "Attention is all you need.pdf",
+          "score": 0.8542973292483436,
+          "provenance": "local"
+        }
+      ],
+      "source_assertion_pass": false,
+      "safe_fail_assertion_pass": null,
+      "rewrite_assertion_pass": null,
+      "agent_iterations": 3,
+      "decomposition_applied": true,
+      "subquery_count": 3,
+      "web_search_used": false,
+      "web_chunk_count": 0,
+      "local_chunk_count": 46,
+      "actions_taken": [
+        "search_documents",
+        "search_documents",
         "search_documents"
       ],
       "metrics": {},
@@ -920,51 +870,53 @@
       "id": "C4-001",
       "category": "inference_grounding",
       "input": "Why did the authors of the Transformer paper remove recurrence?",
-      "rewritten_query": "Why did the authors of the Transformer paper remove recurrence and replace it with self-attention mechanisms?",
-      "generated_output": "The authors of the Transformer paper removed recurrence because recurrent architectures require a linear number of sequential operations to learn dependencies between distant positions in sequence models like RNNs and LSTMs, and logarithmic operations for models like ByteNet, making it difficult to learn such dependencies. In contrast, the Transformer reduces this to a constant number of operations through its attention mechanism, though at the cost of reduced effective resolution due to averaging attention-weighted positions [chunk_id_0005].",
-      "chunks_retrieved_count": 16,
+      "rewritten_query": "Why did the Transformer paper authors remove recurrence and what computational advantages does this provide?",
+      "generated_output": "The Transformer paper authors removed recurrence to enable parallel processing and improve computational efficiency [chunk_id_0004]. While previous attention mechanisms were used in conjunction with recurrent networks, the authors proposed the Transformer architecture as one that eschews recurrence and instead relies on self-attention [chunk_id_0004]. By eliminating recurrence, self-attention allows the model to process all tokens in parallel rather than sequentially, as RNNs must process tokens one at a time due to their sequential dependencies. This architectural change fundamentally improved training speed and computational efficiency while maintaining the ability to capture long-range dependencies without regard to distance in sequences [chunk_id_0004].",
+      "chunks_retrieved_count": 35,
       "chunks_retrieved": [
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0005",
+          "chunk_id": "attention-is-all-you-need-pdf-0004",
           "source": "Attention is all you need.pdf",
           "score": 1.0,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0017",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0048",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.572810134262205,
+          "score": 0.673972854590432,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053",
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0004",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.4094808309189558,
+          "score": 0.45275178721052006,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0000",
           "source": "Attention is all you need.pdf",
-          "score": 0.7828017912905003,
+          "score": 0.9837257626325275,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0004",
+          "chunk_id": "attention-is-all-you-need-pdf-0005",
           "source": "Attention is all you need.pdf",
-          "score": 0.7228225871588514,
+          "score": 0.8116656402458031,
           "provenance": "local"
         }
       ],
       "source_assertion_pass": true,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
+      "agent_iterations": 3,
+      "decomposition_applied": true,
+      "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 16,
+      "local_chunk_count": 35,
       "actions_taken": [
+        "search_documents",
+        "search_documents",
         "search_documents"
       ],
       "metrics": {},
@@ -975,7 +927,7 @@
       "category": "inference_grounding",
       "input": "What limitation of traditional language models does BERT address?",
       "rewritten_query": "What limitation of traditional language models does BERT address?",
-      "generated_output": "BERT addresses the limitation of traditional language models that use left-to-right or right-to-left directional processing. Instead of these unidirectional approaches, BERT uses deep bidirectional Transformers for pre-training, allowing it to consider context from both directions simultaneously [chunk_id_0013].",
+      "generated_output": "BERT addresses the limitation of traditional language models that use unidirectional (left-to-right or right-to-left) pre-training. Instead of these traditional approaches, BERT uses bidirectional pre-training with unsupervised tasks like Masked LM, which allows it to learn from context in both directions simultaneously [chunk_id_0013]. This bidirectional approach enables BERT to better understand language by considering the full context around each word, rather than being constrained to process text in only one direction.",
       "chunks_retrieved_count": 18,
       "chunks_retrieved": [
         {
@@ -1029,37 +981,37 @@
       "category": "inference_grounding",
       "input": "In what scenario would RAG-Token outperform RAG-Sequence?",
       "rewritten_query": "scenarios where RAG-Token outperforms RAG-Sequence performance comparison?",
-      "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
-      "chunks_retrieved_count": 33,
+      "generated_output": "RAG-Token outperforms RAG-Sequence in scenarios requiring token-level flexibility in document selection. RAG-Token marginalizes over retrieved documents at the token level, allowing different top-k documents to be used for generating each individual token, whereas RAG-Sequence uses a single document to generate the entire output sequence [chunk_id_0011] [web-63909dec]. This token-level marginalization advantage means RAG-Token can leverage multiple relevant documents across different parts of the generation process, making it superior when the optimal supporting document varies depending on which token is being generated. RAG-Token's approach of computing p'\u03b8(yi|x,y1:i-1) = \u03a3z\u2208top-k(p(\u00b7|x))p\u03b7(zi|x)p\u03b8(yi|x,zi,y1:i-1) enables this per-token document selection, providing greater flexibility compared to RAG-Sequence's single-document constraint [chunk_id_0011].",
+      "chunks_retrieved_count": 31,
       "chunks_retrieved": [
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0007",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.9044510606229781,
+          "score": 0.934247660646534,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.5404955598268681,
+          "score": 0.5773634264973933,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0003",
           "source": "Attention is all you need.pdf",
-          "score": 0.31121545839354925,
+          "score": 0.3456842769596782,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0028",
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0011",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.828298159108394,
+          "score": 0.9019917203238678,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0008",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.8246968566187182,
+          "score": 0.891513572036672,
           "provenance": "local"
         }
       ],
@@ -1069,12 +1021,12 @@
       "agent_iterations": 3,
       "decomposition_applied": true,
       "subquery_count": 3,
-      "web_search_used": false,
-      "web_chunk_count": 0,
-      "local_chunk_count": 33,
+      "web_search_used": true,
+      "web_chunk_count": 3,
+      "local_chunk_count": 28,
       "actions_taken": [
         "search_documents",
-        "search_documents",
+        "web_search",
         "search_documents"
       ],
       "metrics": {},
@@ -1084,40 +1036,53 @@
       "id": "C5-001",
       "category": "safe_fail_unanswerable",
       "input": "What GPU was used to train BERT?",
-      "rewritten_query": "GPU hardware used to train BERT model Devlin et al. 2019?",
+      "rewritten_query": "GPU hardware used to train BERT model?",
       "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
-      "chunks_retrieved_count": 3,
+      "chunks_retrieved_count": 19,
       "chunks_retrieved": [
         {
-          "chunk_id": "web-5329f518",
-          "source": "https://arxiv.org/html/2410.23261v1",
-          "score": 0.9852,
-          "provenance": "web"
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0059",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.8586450417373633,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-c796faa9",
-          "source": "https://www.reddit.com/r/MachineLearning/comments/13z8zew/p_notes_on_training_bert_from_scratch_on_an_8gb/",
-          "score": 0.98266,
-          "provenance": "web"
+          "chunk_id": "attention-is-all-you-need-pdf-0023",
+          "source": "Attention is all you need.pdf",
+          "score": 0.7832925196759046,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-a3f1a862",
-          "source": "https://pages.cs.wisc.edu/~sinclair/papers/spati-iiswc22-bert.pdf",
-          "score": 0.97871,
-          "provenance": "web"
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0032",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.7794624757322874,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.763863935834342,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0004",
+          "source": "Attention is all you need.pdf",
+          "score": 0.7630836966466086,
+          "provenance": "local"
         }
       ],
       "source_assertion_pass": null,
       "safe_fail_assertion_pass": true,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 1,
+      "agent_iterations": 2,
       "decomposition_applied": false,
       "subquery_count": 1,
-      "web_search_used": true,
-      "web_chunk_count": 3,
-      "local_chunk_count": 0,
+      "web_search_used": false,
+      "web_chunk_count": 0,
+      "local_chunk_count": 19,
       "actions_taken": [
-        "web_search"
+        "web_search",
+        "search_documents"
       ],
       "metrics": {},
       "overall_score": null
@@ -1180,54 +1145,52 @@
       "id": "C5-003",
       "category": "safe_fail_unanswerable",
       "input": "What is GPT-4's architecture?",
-      "rewritten_query": "GPT-4 architecture design and technical specifications?",
-      "generated_output": "GPT-4 is a large-scale multimodal Transformer-based architecture that accepts both text and image inputs and produces text outputs [web-0641e3d2, web-d1935903]. Regarding technical specifications, GPT-4 contains approximately 1 trillion parameters [web-a08bbf98]. The architecture employs scaled dot-product attention mechanisms that use three matrices\u2014query (Q), key (K), and value (V)\u2014to process relationships between elements [web-7cda5d37, web-729b4c45]. As a multimodal model, GPT-4's key capability is its ability to process both image and text inputs simultaneously, distinguishing it from earlier text-only language models [web-9dd1d330, web-d1935903].",
-      "chunks_retrieved_count": 9,
+      "rewritten_query": "GPT-4 architecture: Transformer-based model, parameters, attention mechanisms, multimodal capabilities?",
+      "generated_output": "The provided evidence does not contain information about GPT-4's architecture. The evidence includes papers on the Transformer architecture, BERT, and Retrieval Augmented Generation, but does not discuss GPT-4 specifically or its architectural details.",
+      "chunks_retrieved_count": 18,
       "chunks_retrieved": [
         {
-          "chunk_id": "web-7cda5d37",
-          "source": "https://www.linkedin.com/pulse/gpt-4-explaining-self-attention-mechanism-fatos-ismali",
-          "score": 0.60358196,
-          "provenance": "web"
+          "chunk_id": "attention-is-all-you-need-pdf-0028",
+          "source": "Attention is all you need.pdf",
+          "score": 0.8967258153132973,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-a08bbf98",
-          "source": "https://www.youtube.com/watch?v=wRfLYl1mLHU",
-          "score": 0.5923135,
-          "provenance": "web"
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.8068454416929419,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-729b4c45",
-          "source": "https://medium.com/@AIExplainedML/how-does-the-attention-mechanism-in-gpt-models-work-5f489a59346b",
-          "score": 0.57322514,
-          "provenance": "web"
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0030",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.45739933755549783,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-0641e3d2",
-          "source": "https://medium.com/@amol-wagh/whats-new-in-gpt-4-an-overview-of-the-gpt-4-architecture-and-capabilities-of-next-generation-ai-900c445d5ffe",
-          "score": 0.9992206,
-          "provenance": "web"
+          "chunk_id": "attention-is-all-you-need-pdf-0000",
+          "source": "Attention is all you need.pdf",
+          "score": 0.8826240447334595,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-9dd1d330",
-          "source": "https://www.speechmatics.com/company/articles-and-news/gpt-4-how-does-it-work",
-          "score": 0.99910307,
-          "provenance": "web"
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0002",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.7751072976345106,
+          "provenance": "local"
         }
       ],
       "source_assertion_pass": null,
       "safe_fail_assertion_pass": false,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 3,
-      "decomposition_applied": true,
-      "subquery_count": 3,
-      "web_search_used": true,
-      "web_chunk_count": 9,
-      "local_chunk_count": 0,
+      "agent_iterations": 1,
+      "decomposition_applied": false,
+      "subquery_count": 1,
+      "web_search_used": false,
+      "web_chunk_count": 0,
+      "local_chunk_count": 18,
       "actions_taken": [
-        "web_search",
-        "web_search",
-        "web_search"
+        "search_documents"
       ],
       "metrics": {},
       "overall_score": null
@@ -1236,53 +1199,51 @@
       "id": "C5-004",
       "category": "safe_fail_unanswerable",
       "input": "How does BERT perform on Malaysian language tasks?",
-      "rewritten_query": "BERT performance on Malaysian language tasks and Malay language NLP benchmarks?",
-      "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
-      "chunks_retrieved_count": 37,
+      "rewritten_query": "BERT performance on Malaysian language tasks Malay Bahasa-BERT accuracy metrics benchmarks?",
+      "generated_output": "The provided evidence does not contain information about BERT's performance on Malaysian language tasks. The evidence includes general information about BERT's pre-training methodology and performance on English-language benchmarks, but does not discuss its application to or performance on Malaysian language tasks specifically.",
+      "chunks_retrieved_count": 19,
       "chunks_retrieved": [
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0000",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0021",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.870196820417707,
+          "score": 0.9188235572601351,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0037",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.5563752574677795,
+          "score": 0.5663070182708494,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0032",
+          "chunk_id": "attention-is-all-you-need-pdf-0023",
           "source": "Attention is all you need.pdf",
-          "score": 0.43775704749977956,
+          "score": 0.4647760029865862,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0004",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0000",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8515162760581234,
+          "score": 0.9047305434316417,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0053",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8439245802792674,
+          "score": 0.8629479873536613,
           "provenance": "local"
         }
       ],
       "source_assertion_pass": null,
-      "safe_fail_assertion_pass": true,
+      "safe_fail_assertion_pass": false,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 3,
-      "decomposition_applied": true,
-      "subquery_count": 3,
+      "agent_iterations": 1,
+      "decomposition_applied": false,
+      "subquery_count": 1,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 37,
+      "local_chunk_count": 19,
       "actions_taken": [
-        "search_documents",
-        "search_documents",
         "search_documents"
       ],
       "metrics": {},
@@ -1292,51 +1253,53 @@
       "id": "C6-001",
       "category": "ambiguous_rewrite",
       "input": "Tell me about attention",
-      "rewritten_query": "Explain attention mechanisms in neural networks, including self-attention, keys/values/queries, and architectural variants?",
-      "generated_output": "Attention is a fundamental mechanism in neural networks, particularly in sequence-to-sequence models and transformers. Self-attention layers, where keys, values, and queries come from the same source, are a core component of encoder architectures [chunk_id_0012]. In decoder stacks, self-attention is modified with masking to prevent positions from attending to subsequent positions, ensuring predictions at position i depend only on known outputs [chunk_id_0008]. This attention mechanism has become so central to modern NLP that it inspired the influential architecture described in \"Attention is All You Need\" [chunk_id_0044].",
-      "chunks_retrieved_count": 16,
+      "rewritten_query": "Explain attention mechanisms in neural networks, including self-attention, masked attention, and bidirectional versus constrained attention patterns?",
+      "generated_output": "Self-attention mechanisms in neural networks use keys, values, and queries that all originate from the same source, such as the output of the previous layer in an encoder [chunk_id_0012]. In decoder architectures, masked attention prevents positions from attending to subsequent positions, ensuring that predictions for position i depend only on known outputs [chunk_id_0008]. BERT employs bidirectional attention, allowing the model to attend to both past and future context, whereas GPT models use constrained attention in decoders that masks future positions to maintain autoregressive generation [chunk_id_0008, chunk_id_0043].",
+      "chunks_retrieved_count": 45,
       "chunks_retrieved": [
         {
           "chunk_id": "attention-is-all-you-need-pdf-0012",
           "source": "Attention is all you need.pdf",
-          "score": 0.9860656896140804,
+          "score": 1.0,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0005",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.4897255052251798,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0044",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.46657273231528645,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.4486059469871723,
+          "score": 0.44083761634794943,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0008",
           "source": "Attention is all you need.pdf",
-          "score": 0.8454974097965628,
+          "score": 0.8193946814085137,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0005",
+          "chunk_id": "attention-is-all-you-need-pdf-0009",
           "source": "Attention is all you need.pdf",
-          "score": 0.8266534951532437,
+          "score": 0.7719565433755435,
           "provenance": "local"
         }
       ],
       "source_assertion_pass": null,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": true,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
+      "agent_iterations": 3,
+      "decomposition_applied": true,
+      "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 16,
+      "local_chunk_count": 45,
       "actions_taken": [
+        "search_documents",
+        "search_documents",
         "search_documents"
       ],
       "metrics": {},
@@ -1346,8 +1309,8 @@
       "id": "C6-002",
       "category": "ambiguous_rewrite",
       "input": "How does it handle context?",
-      "rewritten_query": "How does BERT handle context using bidirectional self-attention in the Transformer architecture?",
-      "generated_output": "BERT handles context through bidirectional self-attention in its Transformer architecture, which allows it to process context from both directions simultaneously [chunk_id_0011]. This differs from models like GPT that use constrained self-attention. The Transformer architecture reduces dependencies between distant positions to a constant number of operations, though at the cost of some reduction in effective resolution due to attention-weighted position averaging [chunk_id_0005]. Additionally, BERT is trained on document-level corpora rather than shuffled sentence-level data, which is critical for properly capturing contextual relationships [chunk_id_0017].",
+      "rewritten_query": "How does BERT handle context across multiple turns using bidirectional self-attention and Transformer architecture?",
+      "generated_output": "BERT handles context through bidirectional self-attention in its Transformer architecture, which allows it to process context from both directions simultaneously [chunk_id_0011]. This differs from models like GPT that use constrained self-attention. Additionally, the Transformer architecture reduces dependencies between distant positions to a constant number of operations, though at the cost of some effective resolution due to attention-weighted position averaging [chunk_id_0005]. BERT is trained on document-level corpora rather than shuffled sentence-level data, which is critical for maintaining proper contextual understanding [chunk_id_0017].",
       "chunks_retrieved_count": 18,
       "chunks_retrieved": [
         {
@@ -1359,25 +1322,25 @@
         {
           "chunk_id": "attention-is-all-you-need-pdf-0005",
           "source": "Attention is all you need.pdf",
-          "score": 0.8230013011320283,
+          "score": 0.8035868682461001,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0037",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.5165305039811647,
+          "score": 0.5362807252282993,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0017",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8546501951369898,
+          "score": 0.862211755260426,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0003",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8533234418082966,
+          "score": 0.8241448010027442,
           "provenance": "local"
         }
       ],
@@ -1400,92 +1363,38 @@
       "id": "C6-003",
       "category": "ambiguous_rewrite",
       "input": "What's the training trick they use?",
-      "rewritten_query": "What is the training trick or learning rate schedule used in the attention model?",
-      "generated_output": "The primary training trick used is a learning rate scheduling formula that increases the learning rate linearly for the first warmup_steps training steps, then decreases it thereafter proportionally [chunk_id_0020]. Additionally, BERT employs masked language modeling with a uniform masking rate of 15% applied after tokenization, combined with a next sentence prediction task where 50% of the time a random sentence follows rather than the actual next sentence [chunk_id_0050].",
-      "chunks_retrieved_count": 16,
+      "rewritten_query": "What are the training techniques and tricks used in the Attention Is All You Need paper and BERT?",
+      "generated_output": "Based on the evidence provided, I can identify training techniques from BERT but the evidence does not contain sufficient detail about the specific training tricks from 'Attention Is All You Need' or their optimization hyperparameters. For BERT [chunk_id_0050], the training techniques include masked language modeling with a uniform masking rate of 15% applied after WordPiece tokenization, and next sentence prediction where 50% of the time the actual next sentence follows and 50% of the time a random sentence is used, with combined sequence lengths kept to \u2264512 tokens. However, the evidence does not provide the detailed optimization tricks, learning rate schedules, or specific hyperparameters used in either paper.",
+      "chunks_retrieved_count": 36,
       "chunks_retrieved": [
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0020",
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 1.0,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0044",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.6263188263137194,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0000",
           "source": "Attention is all you need.pdf",
-          "score": 0.8612904662565113,
+          "score": 0.5784517586286411,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0050",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7092243202002116,
+          "score": 0.593307367676401,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.5546415691729943,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "attention-is-all-you-need-pdf-0019",
+          "chunk_id": "attention-is-all-you-need-pdf-0031",
           "source": "Attention is all you need.pdf",
-          "score": 0.7083192035088055,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0051",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.6672700008476964,
-          "provenance": "local"
-        }
-      ],
-      "source_assertion_pass": null,
-      "safe_fail_assertion_pass": null,
-      "rewrite_assertion_pass": true,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
-      "web_search_used": false,
-      "web_chunk_count": 0,
-      "local_chunk_count": 16,
-      "actions_taken": [
-        "search_documents"
-      ],
-      "metrics": {},
-      "overall_score": null
-    },
-    {
-      "id": "C6-004",
-      "category": "ambiguous_rewrite",
-      "input": "Compare the models",
-      "rewritten_query": "Compare Transformer, BERT, and RAG models across architecture, parameters, and performance metrics?",
-      "generated_output": "The three models differ fundamentally in their architectural approaches: (1) **Transformer Architecture** relies entirely on self-attention mechanisms to compute representations without using sequence-aligned RNNs or convolution, eschewing recurrence in favor of attention-based processing [attention-is-all-you-need-pdf-0006, attention-is-all-you-need-pdf-0004]. (2) **BERT** is built on a bidirectional transformer architecture with a unified architecture across different tasks, featuring minimal difference between pre-trained and downstream task architectures, and uses either feature-based or fine-tuning approaches for task adaptation [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010, bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0002]. (3) **RAG (Retrieval-Augmented Generation)** combines a retrieval component based on DPR (which uses BERT encoders in a bi-encoder architecture) with a generator that marginalizes over the top-K retrieved documents, producing output by summing probabilities across retrieved contexts [retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0009, retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0008]. RAG integrates BERT-based retrieval with generation, whereas BERT and Transformer are primarily encoder-based architectures.",
-      "chunks_retrieved_count": 41,
-      "chunks_retrieved": [
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 1.0,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "attention-is-all-you-need-pdf-0006",
-          "source": "Attention is all you need.pdf",
-          "score": 0.9073683089984028,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0009",
-          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.4667467872222698,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "attention-is-all-you-need-pdf-0004",
-          "source": "Attention is all you need.pdf",
-          "score": 0.8370563169287986,
-          "provenance": "local"
-        },
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0002",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.7677780002652361,
+          "score": 0.5344531029712817,
           "provenance": "local"
         }
       ],
@@ -1497,7 +1406,63 @@
       "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 41,
+      "local_chunk_count": 36,
+      "actions_taken": [
+        "search_documents",
+        "search_documents",
+        "search_documents"
+      ],
+      "metrics": {},
+      "overall_score": null
+    },
+    {
+      "id": "C6-004",
+      "category": "ambiguous_rewrite",
+      "input": "Compare the models",
+      "rewritten_query": "Compare Transformer base model, Transformer big model, and BERT in terms of architecture, parameters, and performance metrics?",
+      "generated_output": "The Transformer big model (28.4 BLEU, 2.3\u00d710^19 parameters) outperforms the base model (27.3 BLEU, 3.3\u00d710^18 parameters). BERT uses L=6 layers, H=1024 hidden units, and A=16 attention heads with 100M parameters, matching the largest Transformer configuration from prior work, with BERT's key distinction being its unified architecture across tasks.",
+      "chunks_retrieved_count": 29,
+      "chunks_retrieved": [
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0021",
+          "source": "Attention is all you need.pdf",
+          "score": 0.891302078960388,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.8863178967466799,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0064",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.4079087381036112,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0023",
+          "source": "Attention is all you need.pdf",
+          "score": 0.8689473443765051,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "attention-is-all-you-need-pdf-0020",
+          "source": "Attention is all you need.pdf",
+          "score": 0.8314218139048564,
+          "provenance": "local"
+        }
+      ],
+      "source_assertion_pass": null,
+      "safe_fail_assertion_pass": null,
+      "rewrite_assertion_pass": true,
+      "agent_iterations": 3,
+      "decomposition_applied": true,
+      "subquery_count": 3,
+      "web_search_used": false,
+      "web_chunk_count": 0,
+      "local_chunk_count": 29,
       "actions_taken": [
         "search_documents",
         "search_documents",
@@ -1510,38 +1475,38 @@
       "id": "C7-001",
       "category": "semantic_mismatch",
       "input": "How does the model learn word relationships?",
-      "rewritten_query": "How does the model learn word relationships through pre-training objectives and attention mechanisms?",
-      "generated_output": "The model learns word relationships through pre-training on unsupervised objectives. BERT learns word representations using pre-training approaches that capture widely applicable word relationships [chunk_id_0005]. The model uses attention mechanisms that allow it to relate positions across sequences, enabling it to learn how different words connect to and depend on each other [chunk_id_0003]. Additionally, BERT employs training objectives such as ranking candidate next sentences and predicting next sentence words given previous context, which helps the model understand relational patterns between words and sentences [chunk_id_0006].",
-      "chunks_retrieved_count": 17,
+      "rewritten_query": "How do models learn word relationships through pre-training and attention mechanisms?",
+      "generated_output": "The model learns word relationships through attention mechanisms and embeddings. In transformer-based models like BERT, word relationships are learned using WordPiece embeddings with a token vocabulary [chunk_id_0012], where tokens are processed through attention layers that allow the model to compute relationships between positions in sequences. The attention mechanism enables the model to weigh the importance of different words relative to each other, allowing it to capture how words relate to and depend on one another across the input sequence [chunk_id_0003].",
+      "chunks_retrieved_count": 20,
       "chunks_retrieved": [
-        {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0005",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.9161849406574334,
-          "provenance": "local"
-        },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0003",
           "source": "Attention is all you need.pdf",
-          "score": 0.7427185028599108,
+          "score": 0.924346070187659,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0012",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.7383895274769914,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0005",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.6515723877775897,
+          "score": 0.672426064442171,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0006",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8086950038024973,
+          "chunk_id": "attention-is-all-you-need-pdf-0018",
+          "source": "Attention is all you need.pdf",
+          "score": 0.849991080681631,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0001",
-          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.6724641907238439,
+          "chunk_id": "attention-is-all-you-need-pdf-0000",
+          "source": "Attention is all you need.pdf",
+          "score": 0.7667099317706694,
           "provenance": "local"
         }
       ],
@@ -1553,7 +1518,7 @@
       "subquery_count": 1,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 17,
+      "local_chunk_count": 20,
       "actions_taken": [
         "search_documents"
       ],
@@ -1618,51 +1583,52 @@
       "id": "C7-003",
       "category": "semantic_mismatch",
       "input": "How is context aggregated?",
-      "rewritten_query": "How is context aggregated in retrieval-augmented generation and information retrieval systems?",
-      "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
-      "chunks_retrieved_count": 18,
+      "rewritten_query": "How is context aggregated in retrieval-augmented generation and transformer attention mechanisms?",
+      "generated_output": "For RAG systems, context aggregation works by combining parametric memory (a pre-trained seq2seq transformer) with non-parametric memory (a dense vector index accessed via a neural retriever) [retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0004]. However, the provided evidence does not contain specific details about how transformer attention mechanisms aggregate context from input sequences, as the relevant chunks from the attention paper do not include the technical explanation of the aggregation process.",
+      "chunks_retrieved_count": 35,
       "chunks_retrieved": [
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0004",
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0033",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.9466666934852199,
+          "score": 0.9450143121568169,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0041",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.6663082299590014,
+          "score": 0.42986235213007545,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0034",
+          "chunk_id": "attention-is-all-you-need-pdf-0032",
           "source": "Attention is all you need.pdf",
-          "score": 0.4108456508750712,
+          "score": 0.24350442177269732,
           "provenance": "local"
         },
         {
-          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0033",
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0004",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.9221664855604526,
+          "score": 0.9091035837813137,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0001",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.9183497917975892,
+          "score": 0.8679214959905868,
           "provenance": "local"
         }
       ],
       "source_assertion_pass": false,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
+      "agent_iterations": 2,
+      "decomposition_applied": true,
+      "subquery_count": 2,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 18,
+      "local_chunk_count": 35,
       "actions_taken": [
+        "search_documents",
         "search_documents"
       ],
       "metrics": {},
@@ -1672,38 +1638,38 @@
       "id": "C8-001",
       "category": "decomposition_multistep",
       "input": "Compare the pretraining objectives of BERT and the training procedure of the Transformer, then explain how RAG builds on both.",
-      "rewritten_query": "Compare BERT pretraining objectives and Transformer training procedure, then explain how RAG builds on both approaches?",
-      "generated_output": "BERT's pretraining uses two objectives: masked language modeling and next sentence prediction, employing bidirectional context [chunk_id_0004]. In contrast, the Transformer's training procedure uses unidirectional attention, which BERT identifies as suboptimal for tasks requiring bidirectional context from both directions [chunk_id_0003]. RAG (Retrieval-Augmented Generation) builds on both approaches by combining retrieval mechanisms with generation, leveraging the strengths of transformer-based architectures for knowledge-intensive NLP tasks [chunk_id_0036, chunk_id_0037]. This allows RAG to augment the pretraining and fine-tuning paradigms established by BERT with external retrieval to improve performance on tasks requiring factual knowledge.",
-      "chunks_retrieved_count": 44,
+      "rewritten_query": "Compare BERT pretraining objectives (masked language modeling and next sentence prediction) with Transformer training procedures, then explain how RAG integrates both architectures?",
+      "generated_output": "BERT employs two pretraining objectives: masked language modeling and next sentence prediction, which jointly pretrain text-pair representations [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0004]. Unlike previous approaches, BERT uses bidirectional pretraining to incorporate context from both directions, which is crucial for token-level tasks like question answering [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0003]. The Transformer, which forms BERT's foundation, is built on attention mechanisms as its core training procedure [attention-is-all-you-need-pdf-0029]. However, the provided evidence does not contain sufficient detail about how RAG specifically builds on both BERT and the Transformer's training procedures to fully address the third part of your question.",
+      "chunks_retrieved_count": 46,
       "chunks_retrieved": [
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0004",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.9718351710076869,
+          "score": 0.9737530899895741,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0037",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.3635708830118036,
+          "score": 0.3965879188234712,
           "provenance": "local"
         },
         {
           "chunk_id": "attention-is-all-you-need-pdf-0030",
           "source": "Attention is all you need.pdf",
-          "score": 0.34136813680357947,
+          "score": 0.35399039387273257,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0003",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8539630360779666,
+          "score": 0.8652547212042272,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0050",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8504182005665684,
+          "score": 0.819499243990726,
           "provenance": "local"
         }
       ],
@@ -1715,84 +1681,86 @@
       "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 44,
+      "local_chunk_count": 46,
       "actions_taken": [
         "search_documents",
         "search_documents",
         "search_documents"
       ],
       "metrics": {
-        "faithfulness": null,
-        "answer_relevancy": 0.9480026973546901,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.0,
         "context_recall": 0.6666666666666666
       },
-      "overall_score": 0.8073346820106784
+      "overall_score": 0.5555555555555555
     },
     {
       "id": "C8-002",
       "category": "decomposition_multistep",
       "input": "What are the key architectural differences between BERT and the original Transformer, and how does each handle positional information?",
       "rewritten_query": "Key architectural differences between BERT and original Transformer, positional encoding methods?",
-      "generated_output": "The original Transformer uses sinusoidal positional encoding to represent position information in sequences [attention-is-all-you-need-pdf-0025], while BERT employs learned positional embeddings as part of its input representation. A key architectural difference is that BERT features a unified architecture across different tasks with minimal difference between the pre-trained and downstream task architectures [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010]. The evidence indicates that the Transformer's sinusoidal positional encoding and learned positional embeddings produce nearly identical results [attention-is-all-you-need-pdf-0024], suggesting both approaches are effective for capturing positional information.",
-      "chunks_retrieved_count": 19,
+      "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
+      "chunks_retrieved_count": 39,
       "chunks_retrieved": [
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0010",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.9898094158047259,
+          "score": 0.9975630730027905,
           "provenance": "local"
         },
         {
-          "chunk_id": "attention-is-all-you-need-pdf-0025",
+          "chunk_id": "attention-is-all-you-need-pdf-0027",
           "source": "Attention is all you need.pdf",
-          "score": 0.7328107470314829,
+          "score": 0.43243887999414027,
           "provenance": "local"
         },
         {
           "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0037",
           "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
-          "score": 0.40489915252171976,
+          "score": 0.3199158306542192,
           "provenance": "local"
         },
         {
           "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0052",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8117693888405795,
+          "score": 0.8456359508243054,
           "provenance": "local"
         },
         {
-          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0053",
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0048",
           "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
-          "score": 0.8006795185470361,
+          "score": 0.8198079377361458,
           "provenance": "local"
         }
       ],
-      "source_assertion_pass": true,
+      "source_assertion_pass": false,
       "safe_fail_assertion_pass": null,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 1,
-      "decomposition_applied": false,
-      "subquery_count": 1,
+      "agent_iterations": 3,
+      "decomposition_applied": true,
+      "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 19,
+      "local_chunk_count": 39,
       "actions_taken": [
+        "search_documents",
+        "search_documents",
         "search_documents"
       ],
       "metrics": {
-        "faithfulness": 0.5714285714285714,
-        "answer_relevancy": 0.9450349587476884,
-        "context_recall": 0.0
+        "faithfulness": 0.5,
+        "answer_relevancy": 0.0,
+        "context_recall": 0.5
       },
-      "overall_score": 0.5054878433920865
+      "overall_score": 0.3333333333333333
     },
     {
       "id": "C8-003",
       "category": "decomposition_multistep",
       "input": "Explain the attention mechanism in the Transformer, how BERT adapts it, and what retrieval component RAG adds on top.",
-      "rewritten_query": "Explain the attention mechanism in Transformer models, how BERT adapts attention with bidirectional pre-training, and what retrieval component RAG adds for knowledge-intensive NLP tasks?",
-      "generated_output": "The Transformer's attention mechanism processes sequence dependencies without regard to distance by using attention-weighted operations, reducing learning difficulty for distant positions to a constant number of operations rather than linear or logarithmic complexity [attention-is-all-you-need-pdf-0004, attention-is-all-you-need-pdf-0005]. BERT adapts this by using bidirectional pre-training on large document-level corpora (BooksCorpus and Wikipedia) and introduces special tokens like [CLS] and [SEP] to structure input sequences for transfer learning across downstream tasks [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0017, bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0016]. RAG adds a retrieval component on top of these models to handle knowledge-intensive NLP tasks by augmenting generation with external documents [retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0052, retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053].",
-      "chunks_retrieved_count": 53,
+      "rewritten_query": "Explain the attention mechanism in Transformer models, how BERT adapts attention through bidirectional pre-training, and what retrieval component RAG adds to these architectures?",
+      "generated_output": "The Transformer's attention mechanism processes sequence dependencies in parallel without regard to distance in input or output sequences, reducing learning difficulty for distant dependencies to a constant number of operations [attention-is-all-you-need-pdf-0004, attention-is-all-you-need-pdf-0005]. BERT adapts this by using bidirectional pre-training on document-level corpora and introducing special tokens like [CLS] and [SEP] for attention-based sequence processing, enabling the model to learn meaningful representations across paired sentences [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0016, bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0017]. RAG (Retrieval Augmented Generation) adds a retrieval component on top of these models to address knowledge-intensive NLP tasks [retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0052], augmenting the generation process with retrieved knowledge.",
+      "chunks_retrieved_count": 51,
       "chunks_retrieved": [
         {
           "chunk_id": "attention-is-all-you-need-pdf-0004",
@@ -1833,7 +1801,7 @@
       "subquery_count": 3,
       "web_search_used": false,
       "web_chunk_count": 0,
-      "local_chunk_count": 53,
+      "local_chunk_count": 51,
       "actions_taken": [
         "search_documents",
         "search_documents",
@@ -1846,40 +1814,21 @@
       "id": "C9-001",
       "category": "web_search_provenance",
       "input": "What are the latest developments in transformer architecture research in 2025?",
-      "rewritten_query": "Latest developments in transformer architecture research 2025?",
-      "generated_output": "Recent transformer architecture research in 2025 includes several significant developments: Pathway launched a new post-transformer architecture that imitates scale-free properties and reveals connections between transformers and the brain [chunk_id_web-f1d0149a]. Researchers developed a new transformer model capable of emulating human perceptual reasoning and imaginative states [chunk_id_web-d56ec5e9]. Additionally, NVIDIA committed to hybrid Mamba-transformer architectures for their Nemotron 3 family in December 2025, demonstrating dramatic improvements in speed [chunk_id_web-733695c5].",
-      "chunks_retrieved_count": 3,
-      "chunks_retrieved": [
-        {
-          "chunk_id": "web-f1d0149a",
-          "source": "https://www.businesswire.com/news/home/20251001665931/en/Pathway-Launches-a-New-Post-Transformer-Architecture-That-Paves-the-Way-for-Autonomous-AI",
-          "score": 0.82048416,
-          "provenance": "web"
-        },
-        {
-          "chunk_id": "web-d56ec5e9",
-          "source": "https://techxplore.com/news/2025-05-architecture-emulates-higher-human-mental.html",
-          "score": 0.7593865,
-          "provenance": "web"
-        },
-        {
-          "chunk_id": "web-733695c5",
-          "source": "https://medium.com/@marc.bara.iniesta/the-post-transformer-breakthrough-will-arrive-by-early-2027-ccfe791be5b5",
-          "score": 0.750937,
-          "provenance": "web"
-        }
-      ],
+      "rewritten_query": "Latest developments in transformer architecture research in 2025?",
+      "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
+      "chunks_retrieved_count": 0,
+      "chunks_retrieved": [],
       "source_assertion_pass": null,
-      "safe_fail_assertion_pass": false,
+      "safe_fail_assertion_pass": true,
       "rewrite_assertion_pass": null,
       "agent_iterations": 1,
       "decomposition_applied": false,
       "subquery_count": 1,
-      "web_search_used": true,
-      "web_chunk_count": 3,
+      "web_search_used": false,
+      "web_chunk_count": 0,
       "local_chunk_count": 0,
       "actions_taken": [
-        "web_search"
+        "finalize"
       ],
       "metrics": {},
       "overall_score": null
@@ -1888,47 +1837,52 @@
       "id": "C9-002",
       "category": "web_search_provenance",
       "input": "What is the current state-of-the-art on the GLUE benchmark as of 2025?",
-      "rewritten_query": "state-of-the-art GLUE benchmark performance 2025?",
-      "generated_output": "As of the available evidence, a collaborative effort between Microsoft Dynamics 365 AI and Microsoft Research AI achieved state-of-the-art results on the GLUE benchmark with an overall score of 89.9, succeeding on 5 of 9 GLUE benchmark tasks [chunk_id_web-50581076]. However, the evidence does not provide a comprehensive overview of the current state-of-the-art landscape as of 2025, so this represents one notable result rather than a complete picture of the field's current performance.",
-      "chunks_retrieved_count": 3,
+      "rewritten_query": "state-of-the-art performance GLUE benchmark 2025?",
+      "generated_output": "The provided evidence does not contain information about the current state-of-the-art on the GLUE benchmark as of 2025. The evidence includes BERT results from earlier research showing BERT-LARGE achieving 82.1 score on GLUE [chunk_id_0020], but this represents historical performance, not current 2025 benchmarks. No 2025 GLUE benchmark data is present in the available evidence.",
+      "chunks_retrieved_count": 17,
       "chunks_retrieved": [
         {
-          "chunk_id": "web-50581076",
-          "source": "https://hmjianggatech.github.io/news/smart/",
-          "score": 0.69274646,
-          "provenance": "web"
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0020",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.79922787113674,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-0720cb90",
-          "source": "https://www.chatbench.org/natural-language-processing-benchmarks/",
-          "score": 0.4358301,
-          "provenance": "web"
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0053",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.6017295304045414,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-4d0d031a",
-          "source": "https://gluebenchmark.com/",
-          "score": 0.36649957,
-          "provenance": "web"
+          "chunk_id": "attention-is-all-you-need-pdf-0024",
+          "source": "Attention is all you need.pdf",
+          "score": 0.4811762127161961,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0021",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.735583652295734,
+          "provenance": "local"
+        },
+        {
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0054",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.6932005224029361,
+          "provenance": "local"
         }
       ],
       "source_assertion_pass": null,
       "safe_fail_assertion_pass": false,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 8,
+      "agent_iterations": 1,
       "decomposition_applied": false,
       "subquery_count": 1,
-      "web_search_used": true,
-      "web_chunk_count": 3,
-      "local_chunk_count": 0,
+      "web_search_used": false,
+      "web_chunk_count": 0,
+      "local_chunk_count": 17,
       "actions_taken": [
-        "web_search",
-        "web_search",
-        "web_search",
-        "web_search",
-        "web_search",
-        "web_search",
-        "web_search",
-        "web_search"
+        "search_documents"
       ],
       "metrics": {},
       "overall_score": null
@@ -1937,53 +1891,54 @@
       "id": "C9-003",
       "category": "web_search_provenance",
       "input": "How does GPT-4o compare to BERT on natural language understanding tasks?",
-      "rewritten_query": "Compare GPT-4o and BERT performance on natural language understanding tasks?",
-      "generated_output": "GPT-4o demonstrates superior performance compared to BERT on natural language understanding tasks. On the MMLU reasoning benchmark, GPT-4o scores 88.7%, showing strong reasoning capabilities [web-89526bd4]. In domain-specific NLU tasks, GPT-4o outperformed FinBERT by up to 10% depending on the sector when optimized through prompt engineering [web-661fa6b3]. GPT-4o also outperformed its predecessors in medical language understanding benchmarks, demonstrating exceptional comprehension abilities [web-93132dd0]. While the evidence shows BERT as a foundational bidirectional transformer model for language understanding [bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0000], the direct comparisons indicate GPT-4o achieves notably better performance on contemporary NLU benchmarks.",
-      "chunks_retrieved_count": 24,
+      "rewritten_query": "GPT-4o versus BERT natural language understanding performance comparison?",
+      "generated_output": "I do not have sufficient evidence in the indexed documents to answer this confidently.",
+      "chunks_retrieved_count": 45,
       "chunks_retrieved": [
         {
-          "chunk_id": "web-0dcfd385",
-          "source": "https://www.reddit.com/r/LocalLLaMA/comments/1afgibb/experience_replacing_gpt4_with_bert_for/",
-          "score": 0.99895966,
-          "provenance": "web"
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0053",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.8567756896761192,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-661fa6b3",
-          "source": "https://www.mdpi.com/2079-9292/14/6/1090",
-          "score": 0.99877447,
-          "provenance": "web"
+          "chunk_id": "retrieval-augmented-generation-for-for-knowledge-intensive-nlp-tasks-pdf-0015",
+          "source": "Retrieval Augmented Generation for for Knowledge-Intensive NLP Tasks.pdf",
+          "score": 0.404604097092151,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-960c9fd8",
-          "source": "https://medium.com/ai-disruption/gpt-vs-bert-the-two-minds-of-transformers-7c79610b58be",
-          "score": 0.9986749,
-          "provenance": "web"
+          "chunk_id": "attention-is-all-you-need-pdf-0001",
+          "source": "Attention is all you need.pdf",
+          "score": 0.30106738733846755,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-89526bd4",
-          "source": "https://www.vellum.ai/blog/analysis-gpt-4o-vs-gpt-4-turbo",
-          "score": 0.99947256,
-          "provenance": "web"
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0052",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.8113994438180954,
+          "provenance": "local"
         },
         {
-          "chunk_id": "web-93132dd0",
-          "source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12018924/",
-          "score": 0.99890983,
-          "provenance": "web"
+          "chunk_id": "bert-pre-training-of-deep-bidirectional-transformers-for-language-understanding-pdf-0011",
+          "source": "BERT Pre-Training of Deep Bidirectional Transformers for Language Understanding.pdf",
+          "score": 0.7777678741410728,
+          "provenance": "local"
         }
       ],
       "source_assertion_pass": null,
-      "safe_fail_assertion_pass": false,
+      "safe_fail_assertion_pass": true,
       "rewrite_assertion_pass": null,
-      "agent_iterations": 3,
+      "agent_iterations": 4,
       "decomposition_applied": true,
       "subquery_count": 3,
-      "web_search_used": true,
-      "web_chunk_count": 6,
-      "local_chunk_count": 18,
+      "web_search_used": false,
+      "web_chunk_count": 0,
+      "local_chunk_count": 45,
       "actions_taken": [
         "web_search",
-        "web_search",
+        "search_documents",
+        "search_documents",
         "search_documents"
       ],
       "metrics": {},
@@ -2003,15 +1958,15 @@
       "mean_faithfulness": null,
       "mean_answer_relevancy": null,
       "mean_context_recall": null,
-      "mean_agent_iterations": 1.5,
-      "decomposition_used_count": 1,
+      "mean_agent_iterations": 2.5,
+      "decomposition_used_count": 3,
       "web_search_used_count": 0,
       "overall_category_score": 1.0
     },
     {
       "category": "cross_document_confusion",
       "count": 3,
-      "source_pass_rate": 1.0,
+      "source_pass_rate": 0.6666666666666666,
       "safe_fail_pass_rate": null,
       "rewrite_pass_rate": null,
       "source_checks_count": 3,
@@ -2020,27 +1975,27 @@
       "mean_faithfulness": null,
       "mean_answer_relevancy": null,
       "mean_context_recall": null,
-      "mean_agent_iterations": 1.6666666666666667,
-      "decomposition_used_count": 1,
+      "mean_agent_iterations": 3.0,
+      "decomposition_used_count": 3,
       "web_search_used_count": 0,
-      "overall_category_score": 1.0
+      "overall_category_score": 0.6666666666666666
     },
     {
       "category": "decomposition_multistep",
       "count": 3,
-      "source_pass_rate": 0.6666666666666666,
+      "source_pass_rate": 0.3333333333333333,
       "safe_fail_pass_rate": null,
       "rewrite_pass_rate": null,
       "source_checks_count": 3,
       "safe_fail_checks_count": 0,
       "rewrite_checks_count": 0,
-      "mean_faithfulness": 0.5714285714285714,
-      "mean_answer_relevancy": 0.9465188280511893,
-      "mean_context_recall": 0.3333333333333333,
-      "mean_agent_iterations": 2.3333333333333335,
-      "decomposition_used_count": 2,
+      "mean_faithfulness": 0.75,
+      "mean_answer_relevancy": 0.0,
+      "mean_context_recall": 0.5833333333333333,
+      "mean_agent_iterations": 3.0,
+      "decomposition_used_count": 3,
       "web_search_used_count": 0,
-      "overall_category_score": 0.5059704322769045
+      "overall_category_score": 0.30208333333333326
     },
     {
       "category": "inference_grounding",
@@ -2054,15 +2009,15 @@
       "mean_faithfulness": null,
       "mean_answer_relevancy": null,
       "mean_context_recall": null,
-      "mean_agent_iterations": 1.6666666666666667,
-      "decomposition_used_count": 1,
-      "web_search_used_count": 0,
+      "mean_agent_iterations": 2.3333333333333335,
+      "decomposition_used_count": 2,
+      "web_search_used_count": 1,
       "overall_category_score": 0.6666666666666666
     },
     {
       "category": "precise_attribution",
       "count": 4,
-      "source_pass_rate": 0.75,
+      "source_pass_rate": 0.5,
       "safe_fail_pass_rate": null,
       "rewrite_pass_rate": null,
       "source_checks_count": 4,
@@ -2071,16 +2026,16 @@
       "mean_faithfulness": null,
       "mean_answer_relevancy": null,
       "mean_context_recall": null,
-      "mean_agent_iterations": 1.0,
-      "decomposition_used_count": 0,
+      "mean_agent_iterations": 1.5,
+      "decomposition_used_count": 1,
       "web_search_used_count": 0,
-      "overall_category_score": 0.75
+      "overall_category_score": 0.5
     },
     {
       "category": "safe_fail_unanswerable",
       "count": 4,
       "source_pass_rate": null,
-      "safe_fail_pass_rate": 0.75,
+      "safe_fail_pass_rate": 0.5,
       "rewrite_pass_rate": null,
       "source_checks_count": 0,
       "safe_fail_checks_count": 4,
@@ -2088,10 +2043,10 @@
       "mean_faithfulness": null,
       "mean_answer_relevancy": null,
       "mean_context_recall": null,
-      "mean_agent_iterations": 2.0,
-      "decomposition_used_count": 2,
-      "web_search_used_count": 2,
-      "overall_category_score": 0.75
+      "mean_agent_iterations": 1.25,
+      "decomposition_used_count": 0,
+      "web_search_used_count": 0,
+      "overall_category_score": 0.5
     },
     {
       "category": "semantic_mismatch",
@@ -2105,33 +2060,33 @@
       "mean_faithfulness": null,
       "mean_answer_relevancy": null,
       "mean_context_recall": null,
-      "mean_agent_iterations": 1.0,
-      "decomposition_used_count": 0,
+      "mean_agent_iterations": 1.3333333333333333,
+      "decomposition_used_count": 1,
       "web_search_used_count": 0,
       "overall_category_score": 0.0
     },
     {
       "category": "straightforward_factual",
       "count": 9,
-      "source_pass_rate": 0.6666666666666666,
+      "source_pass_rate": 0.7777777777777778,
       "safe_fail_pass_rate": null,
       "rewrite_pass_rate": null,
       "source_checks_count": 9,
       "safe_fail_checks_count": 0,
       "rewrite_checks_count": 0,
-      "mean_faithfulness": 0.6111111111111112,
-      "mean_answer_relevancy": 0.6114092973341609,
-      "mean_context_recall": 0.8888888888888888,
-      "mean_agent_iterations": 1.0,
-      "decomposition_used_count": 0,
-      "web_search_used_count": 1,
-      "overall_category_score": 0.5292263039112767
+      "mean_faithfulness": 0.9047619047619048,
+      "mean_answer_relevancy": 0.9056458092285443,
+      "mean_context_recall": 1.0,
+      "mean_agent_iterations": 1.2222222222222223,
+      "decomposition_used_count": 1,
+      "web_search_used_count": 0,
+      "overall_category_score": 0.6839069396234867
     },
     {
       "category": "web_search_provenance",
       "count": 3,
       "source_pass_rate": null,
-      "safe_fail_pass_rate": 0.0,
+      "safe_fail_pass_rate": 0.6666666666666666,
       "rewrite_pass_rate": null,
       "source_checks_count": 0,
       "safe_fail_checks_count": 3,
@@ -2139,10 +2094,10 @@
       "mean_faithfulness": null,
       "mean_answer_relevancy": null,
       "mean_context_recall": null,
-      "mean_agent_iterations": 4.0,
+      "mean_agent_iterations": 2.0,
       "decomposition_used_count": 1,
-      "web_search_used_count": 3,
-      "overall_category_score": 0.0
+      "web_search_used_count": 0,
+      "overall_category_score": 0.6666666666666666
     }
   ]
 }

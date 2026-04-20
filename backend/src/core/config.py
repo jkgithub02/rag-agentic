@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     web_search_provider: str = "tavily"
     web_search_api_key: str = ""
     web_search_top_k: int = 3
+    web_search_requires_local_evidence: bool = True
     agent_max_tool_calls: int = 8
 
     min_relevance_score: float = 0.05

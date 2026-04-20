@@ -45,23 +45,33 @@ def query_analysis_prompt(*, query: str, conversation_summary: str | None = None
     )
 
 
-def answer_prompt(*, query: str, evidence: str) -> str:
-    return (
+def answer_prompt(*, query: str, evidence: str, force_answer: bool = False) -> str:
+    base = (
         "Answer the query from the provided evidence in 2-4 sentences. "
         "If the query has multiple parts, address each part explicitly. "
         "Directly address the specific question asked - do not provide tangential information. "
-        "Be helpful, direct, and confident. Only refuse if evidence is completely absent or irrelevant. "
+        "Be helpful, direct, and confident. "
         "When relevant evidence exists, provide an answer even if partial or requiring reasonable inference. "
         "When evidence spans multiple sources, cite every source used. "
         "Always cite specific source chunks: explicitly mention chunk_ids like [chunk_id_0012] or similar. "
         "Extract and synthesize factual claims directly from the evidence. Commit to answering based on what the evidence states. "
         "Do NOT hedge or qualify with phrases like 'does not specify', 'does not explicitly state', or 'is not detailed' if the answer is derivable from evidence. "
-        "Only refuse completely if evidence is truly absent or entirely irrelevant. "
+    )
+    if force_answer:
+        base += (
+            "CRITICAL: Evidence IS provided below and DOES contain relevant information. "
+            "You MUST extract facts from the evidence and present them. "
+            "Do NOT refuse. Do NOT say evidence is insufficient. "
+        )
+    else:
+        base += "Only refuse completely if evidence is truly absent or entirely irrelevant. "
+    base += (
         "Return JSON with keys answer, citation_chunk_ids, prompt_version.\n"
         f"Prompt version: {PROMPT_VERSION}\n"
         f"Query: {query}\n"
         f"Evidence:\n{evidence}"
     )
+    return base
 
 
 def grounding_prompt(*, answer: str, citations: list[str], evidence: str) -> str:
@@ -131,7 +141,8 @@ def query_complexity_prompt(*, query: str, conversation_summary: str | None = No
         "Label guidance:\n"
         "- simple: direct factual lookup likely solved in one retrieval pass.\n"
         "- moderate: explanation/summarization/why-how style queries that may need richer evidence.\n"
-        "- complex: comparison, tradeoff, multi-part, or synthesis-heavy queries likely needing iterative steps.\n"
+        "- complex: comparison, tradeoff, multi-part, or synthesis-heavy queries likely needing iterative steps. "
+        "Queries with 'and how', 'and then', 'compare', 'trace how', 'evolved from', or referencing 3+ entities/papers are ALWAYS complex.\n"
         "Output only valid JSON with keys: query_complexity, confidence, prompt_version.\n"
         "confidence must be a number from 0.0 to 1.0.\n"
         f"Prompt version: {PROMPT_VERSION}\n"
@@ -205,7 +216,8 @@ def agent_step_planning_prompt(
         "Choose exactly one action from: search_documents, web_search, finalize.\n"
         "Action guidance:\n"
         "- search_documents: use when evidence is missing, weak, or incomplete for any subquery in local documents.\n"
-        "- web_search: use when local document evidence is weak (quality < 0.5) or the query asks about current events, benchmarks, or external comparisons. Examples: 'latest research on X', 'current state of Y', 'what datasets were used' (when not in docs), 'how does A compare to B' (when B is not in docs). Web results are labeled separately from local evidence.\n"
+        "- web_search: use when local document evidence is weak (quality < 0.5) or the query asks about current events, benchmarks, or external comparisons. Examples: 'latest research on X', 'current state of Y', 'what datasets were used' (when not in docs), 'how does A compare to B' (when B is not in docs). Web results are labeled separately from local evidence. "
+        "IMPORTANT: web_search is for enriching topics already partially covered by local documents. If local retrieval returned 0 chunks, do NOT recommend web_search — the topic is likely outside the knowledge base.\n"
         "- finalize: use when evidence appears sufficient across all subqueries to proceed to validation/generation.\n"
         "If choosing search_documents or web_search, also return target_subquery_index (integer) indicating which subquery to target. "
         "Pick the subquery with the weakest evidence (lowest quality or still pending).\n"
