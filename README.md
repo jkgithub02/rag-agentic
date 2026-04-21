@@ -1,4 +1,4 @@
-# Agentic RAG: Production-Ready Retrieval-Augmented Generation
+# Agentic RAG: Retrieval-Augmented Generation
 
 **A high-performance, evaluation-driven agentic RAG system combining LangGraph orchestration, iterative think-act-reflect agent loops, web search augmentation, hybrid vector retrieval, and strict grounding verification with measured 87.0% faithfulness and 90.7% context recall on the latest 36-question RAGAS evaluation.**
 
@@ -19,7 +19,7 @@
 
 ### What is This System?
 
-Agentic RAG is a **production-ready Retrieval-Augmented Generation system** designed to answer questions grounded in uploaded documents with high accuracy and reliability. It combines:
+Agentic RAG is a **Retrieval-Augmented Generation system** designed to answer questions grounded in uploaded documents with high accuracy and reliability. It combines:
 
 - **Agentic reasoning**: Iterative think-act-reflect loop that plans retrieval strategies, evaluates evidence quality, and decides when to search locally, search the web, or finalize answers
 - **Web search augmentation**: Automatic web search when local evidence is insufficient, with provenance tracking and safety gates to prevent answering out-of-knowledge-base questions
