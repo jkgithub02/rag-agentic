@@ -198,8 +198,8 @@ function PipelineTracePanel({ trace }: { trace: PipelineTrace }) {
                         <p className="font-semibold text-[var(--ink)]">Grounding Verification</p>
                         <p>Status: <span className={
                             groundingEvent.payload.status === "supported" ? "text-emerald-600 font-medium" :
-                            groundingEvent.payload.status === "partial" ? "text-amber-600 font-medium" :
-                            "text-rose-600 font-medium"
+                                groundingEvent.payload.status === "partial" ? "text-amber-600 font-medium" :
+                                    "text-rose-600 font-medium"
                         }>{String(groundingEvent.payload.status)}</span></p>
                         {groundingEvent.payload.reason != null && (
                             <p className="italic">{String(groundingEvent.payload.reason)}</p>
@@ -257,6 +257,19 @@ function generateThreadId(): string {
         return `session-${crypto.randomUUID().slice(0, 8)}`;
     }
     return `session-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function uniqueStrings(values: string[]): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const value of values) {
+        if (seen.has(value)) {
+            continue;
+        }
+        seen.add(value);
+        result.push(value);
+    }
+    return result;
 }
 
 export function ChatTab({ defaultThreadId }: ChatTabProps) {
@@ -473,7 +486,7 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
                                 s.status === "active" ? { ...s, status: "completed" as const } : s,
                             );
                         }
-                        target.citations = event.citations;
+                        target.citations = uniqueStrings(event.citations);
                         target.traceId = event.trace_id;
                         target.safeFail = event.safe_fail;
                     } else if (event.type === "error") {
@@ -618,7 +631,7 @@ export function ChatTab({ defaultThreadId }: ChatTabProps) {
 
                             {message.role === "assistant" && message.citations && message.citations.length > 0 ? (
                                 <ul className="mt-3 flex flex-wrap gap-2">
-                                    {message.citations.map((citation) => {
+                                    {uniqueStrings(message.citations).map((citation) => {
                                         // Check if citation is a web URL
                                         const isWebUrl = citation.startsWith("http://") || citation.startsWith("https://");
                                         if (isWebUrl) {

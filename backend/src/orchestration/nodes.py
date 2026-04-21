@@ -387,6 +387,29 @@ class PipelineNodes:
         if target_index is None and subquery_statuses:
             target_index = self._pick_weakest_subquery(subquery_statuses)
 
+        # HEURISTIC: Force web search on iteration 3-4 for comparative/recent queries
+        # if all previous iterations were search_documents
+        original_action = thought.recommended_action
+        if (
+            agent_iterations in (3, 4)
+            and thought.recommended_action == "search_documents"
+            and self._settings.web_search_enabled
+        ):
+            query_lower = str(state.get("original_query") or "").lower()
+            comparative_patterns = ["compare", "difference", "vs", "versus", "contrast", "latest", "recent", "current"]
+            is_comparative = any(p in query_lower for p in comparative_patterns)
+
+            # Check if all previous iterations were search_documents
+            previous_thoughts = state.get("agent_thoughts", [])
+            all_search_docs = all(
+                t.recommended_action == "search_documents"
+                for t in previous_thoughts
+            )
+
+            if is_comparative and all_search_docs:
+                thought.recommended_action = "web_search"
+                thought.reasoning = f"[OVERRIDE] Iteration {agent_iterations} of comparative query - trying web_search to find missing entities. Original reasoning: {thought.reasoning}"
+
         thoughts = [*state.get("agent_thoughts", []), thought]
         self._event(
             trace,
@@ -397,6 +420,7 @@ class PipelineNodes:
                 "selected_action": thought.recommended_action,
                 "confidence": thought.confidence,
                 "target_subquery_index": target_index,
+                "override_applied": original_action != thought.recommended_action,
             },
         )
         return {

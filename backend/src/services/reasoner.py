@@ -195,14 +195,26 @@ class QueryReasoner:
         if not chunks:
             return []
 
-        # Prioritize high-score chunks first (top 4), then enforce diversity
+        # IMPORTANT: Prioritize web chunks (web search results) because they often contain
+        # information missing from local documents (e.g., GPT info when only BERT is local)
+        web_chunks = [c for c in chunks if getattr(c, "provenance", "local") == "web"]
+        local_chunks = [c for c in chunks if getattr(c, "provenance", "local") == "local"]
+
         selected: list[EvidenceChunk] = []
         seen_ids: set[str] = set()
         source_counts: dict[str, int] = {}
         max_chunks = 8
         max_per_source = 2
 
-        for chunk in chunks:
+        # First, include all web chunks (up to 3)
+        for chunk in web_chunks[:3]:
+            if chunk.chunk_id not in seen_ids:
+                selected.append(chunk)
+                seen_ids.add(chunk.chunk_id)
+                source_counts[chunk.source] = source_counts.get(chunk.source, 0) + 1
+
+        # Then fill remaining slots with local chunks (prioritize high scores)
+        for chunk in local_chunks:
             if len(selected) >= max_chunks:
                 break
             if chunk.chunk_id in seen_ids:
