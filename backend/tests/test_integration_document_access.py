@@ -111,6 +111,7 @@ def deterministic_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_e2e_upload_indexes_real_chunks(e2e_settings: Settings) -> None:
+    """Test the end-to-end flow of uploading a document, chunking it, and successfully indexing it in the vector database."""
     vector_db = VectorDbManager(e2e_settings)
     upload_service = UploadService(settings=e2e_settings, vector_db=vector_db)
 
@@ -135,6 +136,7 @@ def test_e2e_upload_indexes_real_chunks(e2e_settings: Settings) -> None:
 
 
 def test_e2e_search_then_fetch_by_ids_returns_indexed_source(e2e_settings: Settings) -> None:
+    """Test that chunks retrieved via vector search can be successfully fetched by their IDs using the agent tools."""
     vector_db = VectorDbManager(e2e_settings)
     upload_service = UploadService(settings=e2e_settings, vector_db=vector_db)
     tools = AgentTools(vector_db)
@@ -155,6 +157,7 @@ def test_e2e_search_then_fetch_by_ids_returns_indexed_source(e2e_settings: Setti
 
 
 def test_e2e_pipeline_query_uses_retrieved_chunks_and_citations(e2e_settings: Settings) -> None:
+    """Test the complete agentic pipeline flow from query to answer generation, verifying correct retrieval and citation usage."""
     vector_db = VectorDbManager(e2e_settings)
     upload_service = UploadService(settings=e2e_settings, vector_db=vector_db)
     tools = AgentTools(vector_db)
@@ -199,6 +202,7 @@ def test_e2e_pipeline_query_uses_retrieved_chunks_and_citations(e2e_settings: Se
 
 
 def test_e2e_pipeline_mixed_top_sources_remains_answerable(e2e_settings: Settings) -> None:
+    """Test that the pipeline successfully resolves queries even when the top retrieved chunks come from multiple competing sources."""
     vector_db = VectorDbManager(e2e_settings)
     upload_service = UploadService(settings=e2e_settings, vector_db=vector_db)
     tools = AgentTools(vector_db)

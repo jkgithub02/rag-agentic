@@ -35,6 +35,7 @@ class FakeVectorDb:
 
 
 def test_upload_rejects_unsupported_extension(tmp_path: Path) -> None:
+    """Test that the upload service immediately rejects files with unsupported extensions (like .csv)."""
     service = UploadService(
         settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
         vector_db=FakeVectorDb(),
@@ -49,6 +50,7 @@ def test_upload_rejects_unsupported_extension(tmp_path: Path) -> None:
 
 
 def test_upload_conflict_returns_ask_response(tmp_path: Path) -> None:
+    """Test that uploading a file that already exists with the ASK conflict policy returns a CONFLICT status and a suggested filename."""
     vector_db = FakeVectorDb()
     service = UploadService(
         settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
@@ -70,6 +72,7 @@ def test_upload_conflict_returns_ask_response(tmp_path: Path) -> None:
 
 
 def test_upload_keep_both_uses_windows_suffix(tmp_path: Path) -> None:
+    """Test that the KEEP_BOTH conflict policy auto-increments the filename (e.g., file (1).txt) to avoid overwriting."""
     vector_db = FakeVectorDb()
     service = UploadService(
         settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
@@ -92,6 +95,7 @@ def test_upload_keep_both_uses_windows_suffix(tmp_path: Path) -> None:
 
 
 def test_upload_replace_overwrites_existing_file(tmp_path: Path) -> None:
+    """Test that the REPLACE conflict policy overwrites the existing file and instructs the vector DB to replace the index."""
     vector_db = FakeVectorDb()
     service = UploadService(
         settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
@@ -114,6 +118,7 @@ def test_upload_replace_overwrites_existing_file(tmp_path: Path) -> None:
 
 
 def test_list_documents_returns_supported_files_with_chunk_counts(tmp_path: Path) -> None:
+    """Test that listing documents returns only supported files and accurately reports their chunk counts from the vector DB."""
     vector_db = FakeVectorDb()
     service = UploadService(
         settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
@@ -131,6 +136,7 @@ def test_list_documents_returns_supported_files_with_chunk_counts(tmp_path: Path
 
 
 def test_delete_document_removes_file_and_index_source(tmp_path: Path) -> None:
+    """Test that deleting a document removes it from the filesystem and removes its associated vectors from the DB."""
     vector_db = FakeVectorDb()
     service = UploadService(
         settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),
@@ -148,6 +154,7 @@ def test_delete_document_removes_file_and_index_source(tmp_path: Path) -> None:
 
 
 def test_delete_all_documents_removes_supported_files_and_rebuilds_index(tmp_path: Path) -> None:
+    """Test that bulk deletion only removes supported document files and correctly signals the vector DB to rebuild the index."""
     vector_db = FakeVectorDb()
     service = UploadService(
         settings=Settings(documents_dir=tmp_path, upload_max_file_size_mb=25),

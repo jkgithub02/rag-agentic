@@ -3,9 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 
-from langchain_core.tools import BaseTool
 
-from src.agent.langchain_tools import create_langchain_tools
 from src.core.config import Settings
 from src.core.models import EvidenceChunk
 from src.db.vector_db import VectorDbManager
@@ -78,16 +76,3 @@ class AgentTools:
             )
         return chunks
 
-    def get_langchain_tools(
-        self,
-        *,
-        settings: Settings,
-        reasoner: QueryReasoner,
-    ) -> list[BaseTool]:
-        """Expose LangChain tools for agentic orchestration."""
-
-        return create_langchain_tools(
-            settings=settings,
-            vector_db=self._vector_db,
-            reasoner=reasoner,
-        )

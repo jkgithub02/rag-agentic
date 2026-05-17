@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     bedrock_chat_model_id: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
     reasoning_enabled: bool = True
     reasoning_temperature: float = 0.0
-    reasoning_max_tokens: int = 300
+    reasoning_max_tokens: int = 5000
     reasoning_retry_attempts: int = 3
     reasoning_retry_backoff_seconds: float = 0.35
     stream_token_delay_seconds: float = 0.015
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     retrieval_mode: str = "hybrid"
     retrieval_dense_weight: float = 0.65
     retrieval_sparse_weight: float = 0.35
-    context_compression_base_threshold: int = 2000
+    context_compression_base_threshold: int = 10000
     context_compression_growth_factor: float = 0.9
     enable_agent_mode: bool = True
     agent_max_iterations: int = 10

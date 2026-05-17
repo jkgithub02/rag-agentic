@@ -48,6 +48,7 @@ class FakeUploadService:
 
 
 def test_upload_endpoint_defaults_to_ask_policy() -> None:
+    """Test that the /upload endpoint defaults to the 'ask' conflict policy when none is explicitly provided."""
     fake = FakeUploadService()
     app.dependency_overrides[get_upload_service] = lambda: fake
 
@@ -66,6 +67,7 @@ def test_upload_endpoint_defaults_to_ask_policy() -> None:
 
 
 def test_upload_endpoint_respects_replace_policy() -> None:
+    """Test that the /upload endpoint correctly applies the 'replace' conflict policy when specified in the form data."""
     fake = FakeUploadService()
     app.dependency_overrides[get_upload_service] = lambda: fake
 
@@ -84,6 +86,7 @@ def test_upload_endpoint_respects_replace_policy() -> None:
 
 
 def test_documents_list_endpoint_returns_documents() -> None:
+    """Test that the /documents endpoint retrieves and returns a valid list of uploaded documents."""
     fake = FakeUploadService()
     fake.documents = [
         {"filename": "paper.md", "size_bytes": 123, "chunks_indexed": 2},
@@ -104,6 +107,7 @@ def test_documents_list_endpoint_returns_documents() -> None:
 
 
 def test_documents_delete_endpoint_returns_404_when_missing() -> None:
+    """Test that deleting a non-existent document returns a 404 Not Found error."""
     fake = FakeUploadService()
     app.dependency_overrides[get_upload_service] = lambda: fake
 
@@ -117,6 +121,7 @@ def test_documents_delete_endpoint_returns_404_when_missing() -> None:
 
 
 def test_documents_delete_endpoint_deletes_existing_document() -> None:
+    """Test that deleting an existing document succeeds and returns a correct confirmation."""
     fake = FakeUploadService()
     fake.documents = [{"filename": "paper.md", "size_bytes": 123, "chunks_indexed": 2}]
     app.dependency_overrides[get_upload_service] = lambda: fake
@@ -132,6 +137,7 @@ def test_documents_delete_endpoint_deletes_existing_document() -> None:
 
 
 def test_documents_delete_all_endpoint_returns_deleted_count() -> None:
+    """Test that the batch delete endpoint removes all documents and returns the correct deletion count."""
     fake = FakeUploadService()
     fake.documents = [
         {"filename": "paper.md", "size_bytes": 123, "chunks_indexed": 2},

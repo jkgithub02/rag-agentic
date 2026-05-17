@@ -70,6 +70,7 @@ def test_hybrid_retrieval_fuses_dense_and_sparse_scores(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test that hybrid retrieval correctly fuses scores from dense embeddings and sparse BM25 token matching."""
     manager = _make_manager(
         tmp_path,
         monkeypatch,
@@ -113,6 +114,7 @@ def test_sparse_mode_can_answer_when_dense_hits_are_empty(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test that sparse retrieval mode works independently and can return results even when dense retrieval is disabled."""
     manager = _make_manager(
         tmp_path,
         monkeypatch,
@@ -142,6 +144,7 @@ def test_dense_mode_uses_dense_results_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test that dense retrieval mode ignores sparse matching and only relies on vector embeddings."""
     manager = _make_manager(
         tmp_path,
         monkeypatch,

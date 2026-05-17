@@ -182,6 +182,7 @@ def test_analyze_query_retries_when_first_response_is_not_json() -> None:
 
 
 def test_synthesize_answer_uses_source_diverse_evidence_selection() -> None:
+    """Test that the synthesis prompt includes evidence from multiple different sources when available."""
     llm = _CaptureStubLLMClient(
         '{"answer":"The encoder role differs across papers.","citation_chunk_ids":["rag-0001"],"prompt_version":"v1.0.0"}'
     )
@@ -224,7 +225,6 @@ def test_assess_grounding_handles_malformed_json() -> None:
         ),
     )
 
-    # Should raise controlled LLMInvocationError, not generic JSON error
     from src.services.llm_client import LLMInvocationError
     
     with pytest.raises(LLMInvocationError):
@@ -236,6 +236,7 @@ def test_assess_grounding_handles_malformed_json() -> None:
 
 
 def test_detect_query_complexity_uses_llm_output() -> None:
+    """Test that query complexity detection correctly parses and returns the LLM's classification."""
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_CaptureStubLLMClient(
@@ -252,6 +253,7 @@ def test_detect_query_complexity_uses_llm_output() -> None:
 
 
 def test_detect_query_complexity_falls_back_when_llm_output_invalid() -> None:
+    """Test that query complexity detection defaults to MODERATE when the LLM returns an invalid payload."""
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_CaptureStubLLMClient('{"unexpected":"shape"}'),
@@ -267,6 +269,7 @@ def test_detect_query_complexity_falls_back_when_llm_output_invalid() -> None:
 
 
 def test_decompose_query_lightly_uses_llm_output() -> None:
+    """Test that query decomposition correctly extracts sub-queries from the LLM's JSON response."""
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_CaptureStubLLMClient(
@@ -283,6 +286,7 @@ def test_decompose_query_lightly_uses_llm_output() -> None:
 
 
 def test_decompose_query_lightly_falls_back_on_invalid_payload() -> None:
+    """Test that query decomposition defaults to returning the original query when the LLM payload is invalid."""
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_CaptureStubLLMClient('{"unexpected":"shape"}'),
@@ -297,6 +301,7 @@ def test_decompose_query_lightly_falls_back_on_invalid_payload() -> None:
 
 
 def test_plan_agent_step_uses_llm_action_and_confidence() -> None:
+    """Test that the agent step planner correctly extracts the recommended action and confidence from the LLM."""
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_CaptureStubLLMClient(
@@ -321,6 +326,7 @@ def test_plan_agent_step_uses_llm_action_and_confidence() -> None:
 
 
 def test_plan_agent_step_normalizes_invalid_action_to_search_documents() -> None:
+    """Test that invalid agent actions proposed by the LLM are safely normalized to 'search_documents'."""
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_CaptureStubLLMClient(
@@ -346,6 +352,7 @@ def test_plan_agent_step_normalizes_invalid_action_to_search_documents() -> None
 
 
 def test_plan_agent_step_accepts_subquery_statuses() -> None:
+    """Test that the agent step planner correctly targets specific subqueries based on their pending retrieval statuses."""
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_CaptureStubLLMClient(
@@ -374,6 +381,7 @@ def test_plan_agent_step_accepts_subquery_statuses() -> None:
 
 
 def test_plan_agent_step_returns_target_subquery_index_for_finalize() -> None:
+    """Test that the finalize action from the agent step planner does not require or return a target subquery index."""
     reasoner = QueryReasoner(
         settings=_settings(),
         llm_client=_CaptureStubLLMClient(
@@ -400,6 +408,7 @@ def test_plan_agent_step_returns_target_subquery_index_for_finalize() -> None:
 
 
 def test_normalize_agent_action_web_search() -> None:
+    """Test that variations of web search terminology are correctly normalized to the standard 'web_search' action."""
     assert QueryReasoner._normalize_agent_action("web_search") == "web_search"
     assert QueryReasoner._normalize_agent_action("web") == "web_search"
     assert QueryReasoner._normalize_agent_action("internet") == "web_search"

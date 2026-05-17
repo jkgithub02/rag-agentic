@@ -24,6 +24,7 @@ class VectorDbManager:
     """Persistent local Qdrant manager for document chunk retrieval."""
 
     def __init__(self, settings: Settings) -> None:
+        """Initialize the vector database manager with a Qdrant client and embedding model."""
         self._settings = settings
         self._client = QdrantClient(
             path=str(settings.vector_db_path),
@@ -36,6 +37,7 @@ class VectorDbManager:
 
     @staticmethod
     def _build_embeddings(settings: Settings) -> Embeddings:
+        """Construct the embedding model client based on application settings."""
         provider = settings.embedding_provider.strip().lower()
         if provider == "ollama":
             return OllamaEmbeddings(
@@ -46,6 +48,10 @@ class VectorDbManager:
         raise ValueError("Unsupported embedding provider. Use 'ollama'.")
 
     def build_index(self) -> int:
+        """
+        Clear the existing collection and rebuild the vector index from all documents 
+        in the configured documents directory. Returns the total number of chunks indexed.
+        """
         with self._write_lock:
             chunks = self._load_and_chunk_documents(self._settings.documents_dir)
             vector_size = self._embedding_dimension()
@@ -62,6 +68,10 @@ class VectorDbManager:
             return len(chunks)
 
     def index_file(self, file_path: Path, source_name: str, *, replace_existing: bool) -> int:
+        """
+        Extract text from a single file, chunk it, and upsert it into the vector database.
+        If replace_existing is True, any existing chunks for this source are removed first.
+        """
         with self._write_lock:
             vector_size = self._embedding_dimension()
             self._ensure_collection(vector_size)
@@ -75,6 +85,11 @@ class VectorDbManager:
             return len(chunks)
 
     def search(self, query: str, top_k: int) -> list[EvidenceChunk]:
+        """
+        Retrieve the most relevant document chunks for a given query.
+        Supports dense, sparse, or hybrid search based on settings.
+        Ensures diverse source representation and can include neighboring chunks for context.
+        """
         fetch_limit = max(top_k * 20, 80)
         retrieval_mode = self._settings.retrieval_mode.strip().lower()
         if retrieval_mode not in {"dense", "sparse", "hybrid"}:
@@ -161,6 +176,7 @@ class VectorDbManager:
         return ordered_hits[:max_hits]
 
     def _search_dense(self, *, query: str, fetch_limit: int) -> list[EvidenceChunk]:
+        """Perform a vector-based dense search using Qdrant's nearest neighbor search."""
         vector = self._embeddings.embed_query(query)
         response = self._client.query_points(
             collection_name=self._settings.vector_collection_name,
@@ -192,6 +208,7 @@ class VectorDbManager:
         return hits
 
     def _search_sparse(self, *, query: str, fetch_limit: int) -> list[EvidenceChunk]:
+        """Perform a BM25-like sparse search using term frequency and inverse document frequency."""
         query_terms = self._tokenize_for_sparse(query)
         if not query_terms:
             return []
@@ -246,6 +263,7 @@ class VectorDbManager:
         sparse_candidates: list[EvidenceChunk],
         mode: str,
     ) -> list[EvidenceChunk]:
+        """Combine and rank results from dense and sparse searches using weighted scoring."""
         if mode == "dense":
             return dense_candidates
         if mode == "sparse":
@@ -278,6 +296,7 @@ class VectorDbManager:
 
     @staticmethod
     def _normalize_scores(chunks: list[EvidenceChunk]) -> dict[str, float]:
+        """Min-max normalize a list of scores to a [0, 1] range for fair weighting."""
         if not chunks:
             return {}
         values = [item.score for item in chunks]
@@ -290,10 +309,12 @@ class VectorDbManager:
 
     @staticmethod
     def _tokenize_for_sparse(text: str) -> list[str]:
+        """Extract alphanumeric tokens from text for use in sparse retrieval."""
         return _SPARSE_TOKEN_REGEX.findall(text.lower())
 
     @staticmethod
     def _neighbor_chunk_ids(chunk_id: str, span: int) -> list[str]:
+        """Calculate chunk IDs that are adjacent to the given ID for context window expansion."""
         prefix, sep, suffix = chunk_id.rpartition("-")
         if not sep or not suffix.isdigit():
             return []
@@ -310,16 +331,23 @@ class VectorDbManager:
         return neighbors
 
     def fetch_by_ids(self, chunk_ids: list[str]) -> list[EvidenceChunk]:
+        """Retrieve specific evidence chunks directly by their chunk IDs."""
         return [self._chunk_lookup[cid] for cid in chunk_ids if cid in self._chunk_lookup]
 
     def count_chunks_for_source(self, source_name: str) -> int:
+        """Count the number of indexed chunks belonging to a specific source document."""
         return sum(1 for chunk in self._chunk_lookup.values() if chunk.source == source_name)
 
     def delete_source(self, source_name: str) -> None:
+        """Remove all chunks associated with a specific source document from the index."""
         with self._write_lock:
             self._delete_source_locked(source_name)
 
     def prune_stale_sources(self, candidates: set[str] | None = None) -> int:
+        """
+        Remove chunks for documents that no longer exist in the documents directory.
+        Returns the number of stale sources removed.
+        """
         with self._write_lock:
             if candidates is None:
                 candidates = {chunk.source for chunk in self._chunk_lookup.values()}
@@ -330,6 +358,7 @@ class VectorDbManager:
             return len(stale)
 
     def _load_and_chunk_documents(self, docs_dir: Path) -> list[EvidenceChunk]:
+        """Read all supported documents from the configured directory and split them into chunks."""
         if not docs_dir.exists():
             return []
 
@@ -347,6 +376,7 @@ class VectorDbManager:
         return chunks
 
     def _chunks_for_file(self, file_path: Path, source_name: str) -> list[EvidenceChunk]:
+        """Process a single file into a list of properly sized and overlapping evidence chunks."""
         text = self._extract_text(file_path)
         split_texts = self._chunk_text(
             text=text,
@@ -366,6 +396,7 @@ class VectorDbManager:
         return chunks
 
     def _upsert_chunks_locked(self, chunks: list[EvidenceChunk]) -> None:
+        """Generate embeddings for chunks and insert them into the Qdrant collection."""
         vectors = self._embeddings.embed_documents([chunk.text for chunk in chunks])
         points: list[qmodels.PointStruct] = []
         for chunk, vector in zip(chunks, vectors, strict=True):
@@ -389,6 +420,7 @@ class VectorDbManager:
         )
 
     def _delete_source_locked(self, source_name: str) -> None:
+        """Delete all vectors and metadata associated with a specific document source."""
         if not self._client.collection_exists(self._settings.vector_collection_name):
             return
 
@@ -417,11 +449,13 @@ class VectorDbManager:
             del self._chunk_lookup[chunk_id]
 
     def _embedding_dimension(self) -> int:
+        """Determine the vector dimension by embedding a test probe string."""
         if self._vector_size is None:
             self._vector_size = len(self._embeddings.embed_query("dimension probe"))
         return self._vector_size
 
     def _ensure_collection(self, vector_size: int) -> None:
+        """Create the Qdrant collection if it does not already exist."""
         if self._client.collection_exists(self._settings.vector_collection_name):
             return
         self._client.create_collection(
@@ -434,11 +468,13 @@ class VectorDbManager:
 
     @staticmethod
     def _make_chunk_id(source_name: str, index: int) -> str:
+        """Generate a deterministic chunk ID based on the source name and chunk index."""
         token = _SOURCE_TOKEN_REGEX.sub("-", source_name.lower()).strip("-") or "document"
         return f"{token}-{index:04d}"
 
     @staticmethod
     def _extract_text(path: Path) -> str:
+        """Read raw text from a file, supporting plain text, markdown, and PDF formats."""
         suffix = path.suffix.lower()
         if suffix == ".pdf":
             reader = PdfReader(str(path))
@@ -452,6 +488,7 @@ class VectorDbManager:
 
     @staticmethod
     def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+        """Split text into smaller strings of a maximum size, with a sliding window overlap."""
         normalized = " ".join(text.split())
         if not normalized:
             return []
@@ -470,8 +507,10 @@ class VectorDbManager:
 
     @staticmethod
     def _point_id(chunk_id: str) -> int:
+        """Hash a string chunk ID into an unsigned 64-bit integer required by Qdrant."""
         digest = hashlib.sha1(chunk_id.encode("utf-8")).digest()[:8]
         return int.from_bytes(digest, byteorder="big", signed=False)
 
     def _source_exists(self, source_name: str) -> bool:
+        """Check if a source document file still exists on the filesystem."""
         return (self._settings.documents_dir / source_name).is_file()

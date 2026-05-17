@@ -9,6 +9,7 @@ from src.evaluation.ragas import build_question_bank, run_ragas_evaluation
 
 
 def test_question_bank_covers_all_requested_categories() -> None:
+    """Test that the generated question bank contains exactly 36 questions covering all required logical categories."""
     questions = build_question_bank()
     assert len(questions) == 36
 
@@ -30,6 +31,7 @@ def test_question_bank_covers_all_requested_categories() -> None:
 
 
 def test_question_bank_queries_are_unique() -> None:
+    """Test that every query in the evaluation question bank is strictly unique."""
     questions = build_question_bank()
     queries = [question.query for question in questions]
     assert len(queries) == len(set(queries))
@@ -37,6 +39,7 @@ def test_question_bank_queries_are_unique() -> None:
 
 @pytest.mark.integration
 def test_ragas_live_run() -> None:
+    """Test the complete RAGAS evaluation runner pipeline using a live API and local LLM for verification."""
     backend_root = Path(__file__).resolve().parents[1]
     reports_dir = backend_root / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)

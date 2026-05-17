@@ -539,6 +539,7 @@ def _settings() -> Settings:
 
 
 def test_safe_fail_path() -> None:
+    """Test that the pipeline gracefully returns a safe-fail response when no valid evidence or answer can be found."""
     pipeline = AgenticPipeline(
         settings=_settings(),
         tools=FakeTools(),
@@ -550,6 +551,7 @@ def test_safe_fail_path() -> None:
 
 
 def test_supported_answer_path() -> None:
+    """Test the happy path where the pipeline successfully retrieves evidence and synthesizes a supported answer."""
     pipeline = AgenticPipeline(
         settings=_settings(),
         tools=FakeTools(),
@@ -562,6 +564,7 @@ def test_supported_answer_path() -> None:
 
 
 def test_reasoner_rewrite_is_used_and_traced() -> None:
+    """Test that the reasoner's rewritten query is actively used in the pipeline and properly logged in the trace."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -579,6 +582,7 @@ def test_reasoner_rewrite_is_used_and_traced() -> None:
 
 
 def test_vague_query_retrieves_before_response() -> None:
+    """Test that even vague queries trigger a retrieval step before the pipeline decides how to respond."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -596,6 +600,7 @@ def test_vague_query_retrieves_before_response() -> None:
 
 
 def test_analyze_query_failure_still_retrieves() -> None:
+    """Test that a failure during query analysis does not crash the pipeline, but instead falls back to retrieving based on the original query."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -619,6 +624,7 @@ def test_analyze_query_failure_still_retrieves() -> None:
 
 
 def test_concrete_intent_retrieves_when_model_marks_unclear() -> None:
+    """Test that if a query has a concrete intent, retrieval still occurs even if the LLM incorrectly marks it as unclear."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -637,6 +643,7 @@ def test_concrete_intent_retrieves_when_model_marks_unclear() -> None:
 
 
 def test_explicit_source_query_retrieves_when_model_marks_unclear() -> None:
+    """Test that queries asking about explicit sources force retrieval regardless of the LLM's clarity assessment."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -655,6 +662,7 @@ def test_explicit_source_query_retrieves_when_model_marks_unclear() -> None:
 
 
 def test_model_clarification_signal_is_traced_but_retrieval_runs() -> None:
+    """Test that a model's request for clarification is traced, but does not block the initial retrieval attempt."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -676,6 +684,7 @@ def test_model_clarification_signal_is_traced_but_retrieval_runs() -> None:
 
 
 def test_followup_query_uses_thread_context_summary() -> None:
+    """Test that follow-up queries in the same thread successfully utilize the conversation history summary."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -697,6 +706,7 @@ def test_followup_query_uses_thread_context_summary() -> None:
 
 
 def test_confirmation_followup_uses_prior_user_context_without_reclarifying(tmp_path: Path) -> None:
+    """Test that a simple confirmation (e.g., 'yes') uses prior context and avoids redundant clarification cycles."""
     settings = Settings(
         documents_dir=Path("documents"),
         vector_db_path=tmp_path / "qdrant",
@@ -733,6 +743,7 @@ def test_confirmation_followup_uses_prior_user_context_without_reclarifying(tmp_
 
 
 def test_generation_uses_original_query_not_rewritten_query() -> None:
+    """Test that the final synthesis generation is based on the original user query, not the technically rewritten query."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -754,6 +765,7 @@ def test_generation_uses_original_query_not_rewritten_query() -> None:
 
 
 def test_ambiguous_results_no_longer_hard_fail() -> None:
+    """Test that ambiguous retrieval results (multiple chunks with similar scores) do not cause a hard failure of the pipeline."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -778,6 +790,7 @@ def test_ambiguous_results_no_longer_hard_fail() -> None:
 
 
 def test_close_scores_same_source_do_not_trigger_ambiguity_retry() -> None:
+    """Test that closely scored chunks from the exact same source document do not trigger the ambiguity retry loop."""
 
     settings = Settings(
         documents_dir=Path("documents"),
@@ -803,6 +816,7 @@ def test_close_scores_same_source_do_not_trigger_ambiguity_retry() -> None:
 
 
 def test_explicit_source_query_uses_model_analysis_when_query_is_clear() -> None:
+    """Test that if an explicit source query is clear, the pipeline trusts the model's analysis for further routing."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -826,6 +840,7 @@ def test_explicit_source_query_uses_model_analysis_when_query_is_clear() -> None
 
 
 def test_named_resume_query_uses_model_analysis_for_routing() -> None:
+    """Test that queries referencing a specific named document (like a resume) correctly utilize model analysis."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -849,6 +864,7 @@ def test_named_resume_query_uses_model_analysis_for_routing() -> None:
 
 
 def test_search_across_docs_followup_bypasses_clarification() -> None:
+    """Test that follow-up queries implicitly asking to search across all documents bypass unnecessary clarification loops."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -872,6 +888,7 @@ def test_search_across_docs_followup_bypasses_clarification() -> None:
 
 
 def test_ambiguous_top_two_sources_no_longer_hard_fail() -> None:
+    """Test that having two distinct sources tied for top relevance score does not crash the pipeline."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -897,6 +914,7 @@ def test_ambiguous_top_two_sources_no_longer_hard_fail() -> None:
 
 
 def test_ambiguous_flow_does_not_emit_retry_events() -> None:
+    """Test that encountering ambiguous results does not pollute the event trace with retry events anymore."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -919,6 +937,7 @@ def test_ambiguous_flow_does_not_emit_retry_events() -> None:
 
 
 def test_reasoner_grounding_unsupported_forces_safe_fail() -> None:
+    """Test that if the grounding assessment explicitly returns 'UNSUPPORTED', the pipeline overrides the answer with a safe-fail response."""
     settings = _settings()
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
@@ -945,6 +964,7 @@ def test_reasoner_grounding_unsupported_forces_safe_fail() -> None:
 
 
 def test_reasoner_grounding_supported_keeps_answer() -> None:
+    """Test that if the grounding assessment returns 'SUPPORTED', the synthesized answer is preserved and returned to the user."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -966,6 +986,7 @@ def test_reasoner_grounding_supported_keeps_answer() -> None:
 
 
 def test_agent_mode_routes_through_agent_loop() -> None:
+    """Test that when agentic reasoning is enabled, the pipeline correctly routes the execution flow through the iterative agent loop."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -996,6 +1017,7 @@ def test_agent_mode_routes_through_agent_loop() -> None:
 
 
 def test_agent_mode_simple_query_completes_in_single_iteration() -> None:
+    """Test that a simple query processed in agent mode completes efficiently in a single iteration without looping."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -1026,6 +1048,7 @@ def test_agent_mode_simple_query_completes_in_single_iteration() -> None:
 
 
 def test_agent_planner_finalize_skips_retrieval_call() -> None:
+    """Test that if the agent step planner immediately decides to finalize, the pipeline skips further retrieval entirely."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -1055,6 +1078,7 @@ def test_agent_planner_finalize_skips_retrieval_call() -> None:
 
 
 def test_refusal_like_answer_forces_safe_fail() -> None:
+    """Test that if the synthesized answer sounds like a refusal, the pipeline catches it and forces a clean safe-fail response."""
     settings = _settings()
     trace_store = TraceStore()
 
@@ -1102,6 +1126,7 @@ def test_refusal_like_answer_forces_safe_fail() -> None:
 
 
 def test_reasoner_generation_is_used_and_traced() -> None:
+    """Test that the final generated answer from the reasoner is both returned to the user and correctly logged in the trace."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -1125,6 +1150,7 @@ def test_reasoner_generation_is_used_and_traced() -> None:
 
 
 def test_reasoner_generation_unknown_chunk_ids_safe_fails() -> None:
+    """Test that if the LLM hallucinates citation chunk IDs, the pipeline gracefully catches the error and safe-fails."""
     settings = _settings()
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
@@ -1143,6 +1169,7 @@ def test_reasoner_generation_unknown_chunk_ids_safe_fails() -> None:
 
 
 def test_reasoner_synthesis_exception_safe_fails() -> None:
+    """Test that an unexpected exception during the answer synthesis stage results in a safe-fail rather than an unhandled crash."""
     settings = _settings()
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
@@ -1162,6 +1189,7 @@ def test_reasoner_synthesis_exception_safe_fails() -> None:
 
 
 def test_conversation_recall_query_is_model_routed_not_rule_shortcut() -> None:
+    """Test that queries asking to summarize the conversation are intelligently routed by the model, not just by hardcoded rules."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -1185,6 +1213,7 @@ def test_conversation_recall_query_is_model_routed_not_rule_shortcut() -> None:
 
 
 def test_thread_history_persists_across_pipeline_instances(tmp_path: Path) -> None:
+    """Test that conversation history tied to a specific thread ID is correctly persisted and retrieved across separate pipeline instances."""
     settings = Settings(
         documents_dir=Path("documents"),
         vector_db_path=tmp_path / "qdrant",
@@ -1216,6 +1245,7 @@ def test_thread_history_persists_across_pipeline_instances(tmp_path: Path) -> No
 
 
 def test_fetch_chunks_by_ids_is_used_in_reference_retrieval_flow() -> None:
+    """Test that specific chunk references bypass broad vector search and directly fetch chunks by their IDs."""
     trace_store = TraceStore()
     tools = HydratingTools(return_fetched=True)
     pipeline = AgenticPipeline(
@@ -1237,6 +1267,7 @@ def test_fetch_chunks_by_ids_is_used_in_reference_retrieval_flow() -> None:
 
 
 def test_multi_question_rewrite_fans_out_retrieval_queries() -> None:
+    """Test that multi-part queries parsed into several sub-queries fan out into multiple parallel retrieval steps."""
     trace_store = TraceStore()
     tools = MultiQueryTools()
     pipeline = AgenticPipeline(
@@ -1264,6 +1295,7 @@ def test_multi_question_rewrite_fans_out_retrieval_queries() -> None:
 
 
 def test_complex_query_decomposition_fans_out_retrieval_when_enabled() -> None:
+    """Test that complex queries trigger the decomposition logic, fanning out into sub-queries when agentic mode is enabled."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -1292,6 +1324,7 @@ def test_complex_query_decomposition_fans_out_retrieval_when_enabled() -> None:
 
 
 def test_comparison_query_uses_rewrite_driven_single_search() -> None:
+    """Test that comparison queries correctly use the model's single synthesized rewrite for search."""
     trace_store = TraceStore()
     tools = QueryCaptureTools()
     pipeline = AgenticPipeline(
@@ -1313,6 +1346,7 @@ def test_comparison_query_uses_rewrite_driven_single_search() -> None:
 
 
 def test_category6_ambiguous_queries_show_rewrite_trace() -> None:
+    """Test that resolving explicitly ambiguous queries leaves a clear trace of the query rewriting process."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -1341,6 +1375,7 @@ def test_category6_ambiguous_queries_show_rewrite_trace() -> None:
 
 
 def test_category7_lexical_mismatch_queries_are_rewritten_to_technical_terms() -> None:
+    """Test that colloquial queries are successfully rewritten into their proper technical terms before retrieval."""
     trace_store = TraceStore()
     tools = QueryCaptureTools()
     pipeline = AgenticPipeline(
@@ -1369,6 +1404,7 @@ def test_category7_lexical_mismatch_queries_are_rewritten_to_technical_terms() -
 
 
 def test_missing_fetch_step_does_not_break_generation() -> None:
+    """Test that if the chunk fetching step is somehow skipped, generation gracefully handles the missing chunks."""
     trace_store = TraceStore()
     tools = HydratingTools(return_fetched=False)
     pipeline = AgenticPipeline(
@@ -1389,6 +1425,7 @@ def test_missing_fetch_step_does_not_break_generation() -> None:
 
 
 def test_should_compress_context_triggers_for_large_evidence() -> None:
+    """Test that the context compression step activates when the retrieved evidence volume exceeds the threshold."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -1414,6 +1451,7 @@ def test_should_compress_context_triggers_for_large_evidence() -> None:
 
 
 def test_should_compress_context_skips_for_small_evidence() -> None:
+    """Test that context compression is skipped when the retrieved evidence easily fits within normal bounds."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -1432,6 +1470,7 @@ def test_should_compress_context_skips_for_small_evidence() -> None:
 
 
 def test_limit_exceeded_routes_to_fallback_response() -> None:
+    """Test that exceeding the safety limits for pipeline iterations routes immediately to a safe-fail response."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -1459,6 +1498,7 @@ def test_limit_exceeded_routes_to_fallback_response() -> None:
 
 
 def test_turn_scoped_counters_reset_between_messages_in_same_thread() -> None:
+    """Test that iteration counters are correctly reset per conversational turn, preventing premature timeouts."""
     settings = Settings(
         documents_dir=Path("documents"),
         retrieval_top_k=3,
@@ -1496,6 +1536,7 @@ def test_turn_scoped_counters_reset_between_messages_in_same_thread() -> None:
 
 
 def test_verify_uses_cited_chunks_not_only_top_ranked_chunks() -> None:
+    """Test that the grounding verification step evaluates the chunks the model actually cited, rather than just the top-ranked ones."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
         settings=_settings(),
@@ -1513,6 +1554,7 @@ def test_verify_uses_cited_chunks_not_only_top_ranked_chunks() -> None:
 
 
 def test_no_hit_safe_fail_uses_deterministic_message() -> None:
+    """Test that safe-fails triggered by zero search hits use the standard, deterministic fallback message."""
     settings = _settings()
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
@@ -1529,6 +1571,7 @@ def test_no_hit_safe_fail_uses_deterministic_message() -> None:
 
 
 def test_coerce_clarification_overrides_stale_answer_when_needed() -> None:
+    """Test that forced clarification correctly overrides any stale answers that might have been synthesized."""
     trace = PipelineTrace(original_query="q", rewritten_query="q")
     state = {
         "clarify_needed": True,
@@ -1546,6 +1589,7 @@ def test_coerce_clarification_overrides_stale_answer_when_needed() -> None:
     assert coerced["citations"] == []
     assert any(event.stage == "clarify" for event in trace.events)
 def test_unsupported_grounding_uses_default_safe_fail_message() -> None:
+    """Test that an 'UNSUPPORTED' grounding result uses the system's default safe-fail text."""
     settings = _settings()
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
@@ -1565,6 +1609,7 @@ def test_unsupported_grounding_uses_default_safe_fail_message() -> None:
 
 
 def test_pipeline_invokes_graph_with_thread_id_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that the pipeline correctly passes the thread ID into the LangGraph execution configuration."""
     class FakeGraph:
         def __init__(self) -> None:
             self.invocations: list[tuple[dict[str, object], dict[str, object]]] = []
@@ -1608,6 +1653,7 @@ def test_pipeline_invokes_graph_with_thread_id_config(monkeypatch: pytest.Monkey
 
 
 def test_pipeline_uses_provided_thread_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that if a specific thread ID is provided by the user, the pipeline uses it instead of generating a new one."""
     class FakeGraph:
         def __init__(self) -> None:
             self.invocations: list[tuple[dict[str, object], dict[str, object]]] = []
@@ -1646,6 +1692,7 @@ def test_pipeline_uses_provided_thread_id(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_pipeline_recovers_from_synthesis_failure_with_safe_fail() -> None:
+    """Test that the pipeline gracefully recovers into a safe-fail state if the LLM crashes during the final synthesis step."""
     """Test: Pipeline handles synthesis errors gracefully with safe_fail fallback.
     
     When reasoner fails on answer synthesis (simulating LLM error), pipeline
@@ -1793,6 +1840,7 @@ class DecompositionTrackingReasoner(FakeReasoner):
 
 
 def test_subquery_statuses_are_initialized_and_tracked() -> None:
+    """Test that when a query is decomposed, the statuses of all resulting subqueries are properly initialized and tracked in the state."""
     """Decomposed subqueries get per-subquery tracking through the agent loop."""
     settings = Settings(
         documents_dir=Path("documents"),
@@ -1826,6 +1874,7 @@ def test_subquery_statuses_are_initialized_and_tracked() -> None:
 
 
 def test_planner_web_search_action_executes_when_enabled() -> None:
+    """Test that if the planner recommends a web search and it is enabled, the pipeline executes the web search tool."""
     """When web_search_enabled=True and planner recommends web_search, web results are fetched."""
     settings = Settings(
         documents_dir=Path("documents"),
@@ -1856,6 +1905,7 @@ def test_planner_web_search_action_executes_when_enabled() -> None:
 
 
 def test_planner_web_search_disabled_does_not_crash() -> None:
+    """Test that if the planner recommends a web search but it is disabled by policy, the pipeline ignores it without crashing."""
     """When web_search_enabled=False and planner recommends web_search, it gracefully skips."""
     settings = Settings(
         documents_dir=Path("documents"),
@@ -1884,6 +1934,7 @@ def test_planner_web_search_disabled_does_not_crash() -> None:
 
 
 def test_all_queries_route_through_agent_loop() -> None:
+    """Test that every query execution is strictly routed through the core iterative agent loop for unified processing."""
     """After legacy path retirement, even simple queries use the agent loop."""
     trace_store = TraceStore()
     pipeline = AgenticPipeline(
@@ -1905,6 +1956,7 @@ def test_all_queries_route_through_agent_loop() -> None:
 
 
 def test_sufficiency_policy_respects_pending_subqueries() -> None:
+    """Test that the evidence sufficiency policy prevents finalization as long as there are pending unresolved subqueries."""
     """Agent loop continues when subqueries are still pending, even if overall quality is high."""
     settings = Settings(
         documents_dir=Path("documents"),
@@ -1936,6 +1988,7 @@ def test_sufficiency_policy_respects_pending_subqueries() -> None:
 
 
 def test_planner_action_normalization_covers_web_search_synonyms() -> None:
+    """Test that semantic variations for requesting a web search (e.g., 'search_web') are normalized correctly."""
     """Reasoner normalizes web search synonyms to canonical 'web_search' action."""
     from src.services.reasoner import QueryReasoner
 
@@ -1950,6 +2003,7 @@ def test_planner_action_normalization_covers_web_search_synonyms() -> None:
 
 
 def test_grounding_refusal_detection_forces_safe_fail_deterministically() -> None:
+    """Test that explicit refusal signals from the LLM during grounding are caught and mapped to a standard safe-fail."""
     """Grounding refusal detection consistently converts to safe_fail."""
     settings = _settings()
     trace_store = TraceStore()
@@ -1983,6 +2037,7 @@ def test_grounding_refusal_detection_forces_safe_fail_deterministically() -> Non
 
 
 def test_evidence_provenance_label_preserved_through_pipeline() -> None:
+    """Test that the source labels (provenance) of evidence chunks are preserved across the entire pipeline trace."""
     """Web-sourced chunks retain provenance='web' label through to generation."""
     from src.core.models import EvidenceChunk
 
@@ -2008,6 +2063,7 @@ def test_evidence_provenance_label_preserved_through_pipeline() -> None:
 
 
 def test_decomposition_fans_out_when_complex_and_enabled() -> None:
+    """Test that a highly complex query correctly triggers decomposition and fans out the retrieval steps when allowed."""
     """Complex queries with decomposition enabled produce multiple subqueries tracked end-to-end."""
     settings = Settings(
         documents_dir=Path("documents"),

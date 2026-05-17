@@ -4,7 +4,8 @@ from src.core.config import Settings
 from src.core.models import ConflictPolicy, ResponseCategory
 
 
-def test_phase1_settings_contracts() -> None:
+def test_settings_contracts() -> None:
+    """Test that the default environment settings conform to the expected phase 1 baseline contracts."""
     settings = Settings(_env_file=None)
     assert settings.embedding_provider == "ollama"
     assert settings.reasoning_enabled is True
@@ -12,6 +13,7 @@ def test_phase1_settings_contracts() -> None:
 
 
 def test_response_categories_contract() -> None:
+    """Test that the system's predefined response categories exactly match the required enumeration."""
     expected = {
         "clarification",
         "safe_fail",
@@ -21,6 +23,7 @@ def test_response_categories_contract() -> None:
 
 
 def test_upload_conflict_policy_contract() -> None:
+    """Test that the supported document upload conflict policies match the required enumeration."""
     expected = {"ask", "replace", "keep_both"}
     actual = {policy.value for policy in ConflictPolicy}
     assert actual == expected

@@ -7,6 +7,7 @@ from src.services.trace_store import TraceStore
 
 
 def test_trace_store_persists_and_reads_from_disk(tmp_path) -> None:
+    """Test that the TraceStore can successfully write a pipeline trace to disk and read it back."""
     store = TraceStore(storage_dir=tmp_path)
     trace = PipelineTrace(original_query="q", rewritten_query="rq")
 
@@ -24,12 +25,14 @@ def test_trace_store_persists_and_reads_from_disk(tmp_path) -> None:
 
 
 def test_trace_store_returns_none_for_unknown_trace(tmp_path) -> None:
+    """Test that requesting a non-existent trace ID returns None safely without raising exceptions."""
     store = TraceStore(storage_dir=tmp_path)
 
     assert store.get("missing-trace-id") is None
 
 
 def test_trace_store_list_recent_returns_newest_first(tmp_path) -> None:
+    """Test that listing recent traces sorts them correctly by modification time in descending order."""
     store = TraceStore(storage_dir=tmp_path)
     t1 = PipelineTrace(original_query="q1", rewritten_query="r1")
     t2 = PipelineTrace(original_query="q2", rewritten_query="r2")

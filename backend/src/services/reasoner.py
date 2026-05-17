@@ -31,10 +31,15 @@ class QueryReasoner:
     """Prompt-driven reasoner with strict LLM-only behavior."""
 
     def __init__(self, settings: Settings, llm_client: BedrockChatClient) -> None:
+        """Initialize the QueryReasoner with configuration settings and an LLM client."""
         self._settings = settings
         self._llm_client = llm_client
 
     def summarize_conversation(self, history: list[dict[str, str]]) -> str:
+        """
+        Generate a concise summary of the recent conversation history.
+        Uses the last 8 turns to provide context for subsequent LLM calls.
+        """
         if not history:
             return ""
 
@@ -58,6 +63,11 @@ class QueryReasoner:
         query: str,
         conversation_summary: str | None = None,
     ) -> tuple[QueryAnalysisOutput, str]:
+        """
+        Analyze the user's query to determine if it is clear and self-contained.
+        If unclear, determines what clarification is needed. If clear, provides a rewritten version
+        optimized for retrieval.
+        """
         if not self._settings.reasoning_enabled:
             raise LLMInvocationError("Reasoning is disabled but analyze_query was invoked.")
 
@@ -87,6 +97,7 @@ class QueryReasoner:
 
     @staticmethod
     def _normalize_query_analysis_payload(payload: dict[str, object]) -> dict[str, object]:
+        """Ensure the query analysis payload strictly matches the expected types and structure."""
         normalized = dict(payload)
 
         raw_is_clear = normalized.get("is_clear")
@@ -128,6 +139,10 @@ class QueryReasoner:
         citations: list[str],
         evidence: list[str],
     ) -> tuple[GroundingResult, str, str | None]:
+        """
+        Evaluate whether an answer is fully supported (grounded) by the provided evidence.
+        Returns the grounding status, the evaluator type ('llm'), and the prompt version used.
+        """
         if not self._settings.reasoning_enabled:
             raise LLMInvocationError("Reasoning is disabled but assess_grounding was invoked.")
 
@@ -155,6 +170,10 @@ class QueryReasoner:
         subqueries: list[str] | None = None,
         force_answer: bool = False,
     ) -> tuple[str, list[str], str, str | None]:
+        """
+        Synthesize a final answer to the user's query based on the provided evidence chunks.
+        Optionally uses decomposed subqueries to ensure all parts of a complex question are addressed.
+        """
         if not self._settings.reasoning_enabled:
             raise LLMInvocationError("Reasoning is disabled but synthesize_answer was invoked.")
 
@@ -192,6 +211,7 @@ class QueryReasoner:
 
     @staticmethod
     def _select_chunks_for_synthesis(chunks: list[EvidenceChunk]) -> list[EvidenceChunk]:
+        """Filter and rank evidence chunks to fit within the prompt window, prioritizing diverse and high-scoring sources."""
         if not chunks:
             return []
 
@@ -214,10 +234,15 @@ class QueryReasoner:
                 source_counts[chunk.source] = source_counts.get(chunk.source, 0) + 1
 
         # Then fill remaining slots with local chunks (prioritize high scores)
+        local_chunks = sorted(local_chunks, key=lambda c: c.score, reverse=True)
         for chunk in local_chunks:
             if len(selected) >= max_chunks:
                 break
             if chunk.chunk_id in seen_ids:
+                continue
+            # Skip low-scoring chunks — bibliography/reference-list chunks score
+            # well below substantive body-text chunks (typically <0.55 vs >0.75).
+            if chunk.score < 0.60:
                 continue
             # Take first 4 chunks by score, then enforce source diversity
             if len(selected) < 4 or source_counts.get(chunk.source, 0) == 0:
@@ -232,10 +257,12 @@ class QueryReasoner:
         return selected
 
     def _invoke_structured(self, prompt: str, model_type: type[SchemaModelT]) -> SchemaModelT:
+        """Call the LLM and parse its JSON output directly into a Pydantic model."""
         parsed = self._invoke_structured_raw(prompt)
         return model_type.model_validate(parsed)
 
     def _invoke_structured_raw(self, prompt: str) -> dict[str, object]:
+        """Call the LLM and safely parse its JSON output into a generic dictionary."""
         llm_text = self._llm_client.invoke_text(prompt)
         try:
             return self._parse_json_payload(llm_text)
@@ -253,6 +280,7 @@ class QueryReasoner:
 
     @staticmethod
     def _normalize_rewritten_query(raw_query: str, *, operation: str) -> str:
+        """Ensure a rewritten query is valid and ends with a question mark."""
         rewritten = raw_query.strip()
         if len(rewritten) < 2:
             raise LLMInvocationError(f"{operation} produced invalid output.")
@@ -262,6 +290,7 @@ class QueryReasoner:
 
     @staticmethod
     def _parse_json_payload(text: str) -> dict[str, object]:
+        """Extract and parse a JSON object from a string that might contain surrounding text or markdown fences."""
         stripped = text.strip()
         if stripped.startswith("{") and stripped.endswith("}"):
             return json.loads(stripped)
@@ -274,6 +303,7 @@ class QueryReasoner:
 
     @staticmethod
     def _normalize_grounding_status(value: object) -> object:
+        """Map varying LLM output terminology to the standard 'supported', 'partial', or 'unsupported' statuses."""
         if not isinstance(value, str):
             return value
 
@@ -339,6 +369,7 @@ class QueryReasoner:
 
     @staticmethod
     def _normalize_query_complexity(value: object) -> QueryComplexity | None:
+        """Map varying LLM output terminology to the standard query complexity enumeration."""
         if not isinstance(value, str):
             return None
 
@@ -409,6 +440,11 @@ class QueryReasoner:
         last_observation: str | None = None,
         subquery_statuses: list[dict[str, object]] | None = None,
     ) -> AgentThought:
+        """
+        Determine the next action for the agentic loop to take based on the current state.
+        Evaluates current evidence quality and decides whether to search for more documents, 
+        perform a web search, or finalize the answer.
+        """
         if not self._settings.reasoning_enabled:
             return AgentThought(
                 reasoning="Reasoning disabled; defaulting to document search.",
@@ -466,6 +502,7 @@ class QueryReasoner:
 
     @staticmethod
     def _normalize_agent_action(value: object) -> str:
+        """Map varying LLM output terminology to the standard 'search_documents', 'web_search', or 'finalize' actions."""
         if not isinstance(value, str):
             return "search_documents"
 

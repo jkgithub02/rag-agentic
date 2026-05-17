@@ -40,6 +40,7 @@ def _settings() -> Settings:
 
 
 def test_invoke_text_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that the LLM client correctly catches transient errors and retries to achieve a successful invocation."""
     client = _FlakyChatBedrock()
     monkeypatch.setattr("src.services.llm_client.ChatBedrock", lambda *args, **kwargs: client)
 
@@ -51,6 +52,7 @@ def test_invoke_text_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_invoke_text_raises_after_retry_exhaustion(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that the LLM client ultimately raises an LLMInvocationError when all retry attempts fail."""
     monkeypatch.setattr(
         "src.services.llm_client.ChatBedrock",
         lambda *args, **kwargs: _FailingChatBedrock(),

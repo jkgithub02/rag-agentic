@@ -51,6 +51,7 @@ class FakeTraceStore:
 
 
 def test_ask_endpoint_forwards_optional_thread_id() -> None:
+    """Test that the /ask endpoint correctly forwards the thread_id to the pipeline for conversation state tracking."""
     fake_pipeline = FakePipeline()
     app.dependency_overrides[get_pipeline] = lambda: fake_pipeline
 
@@ -65,6 +66,7 @@ def test_ask_endpoint_forwards_optional_thread_id() -> None:
 
 
 def test_traces_endpoint_returns_recent_traces_and_limit() -> None:
+    """Test that the /traces endpoint correctly fetches recent pipeline traces from the trace store."""
     fake_store = FakeTraceStore()
     app.dependency_overrides[get_trace_store] = lambda: fake_store
 

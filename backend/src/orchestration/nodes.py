@@ -36,6 +36,21 @@ class PipelineNodes:
         self._progress_callback = progress_callback
 
     def summarize_history(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 1 — Summarise Conversation History (Entry Point)
+
+        The very first node executed for every request. Reads the raw
+        conversation `history` list (previous user/assistant turns stored by
+        the thread) and asks the LLM to produce a short prose summary. That
+        summary travels with the state for the rest of the pipeline so that
+        downstream nodes can resolve pronouns / ambiguous references without
+        seeing the full history verbatim.
+
+        Also resets all per-request counters and flags so a resumed thread
+        always starts with a clean slate for the new turn.
+
+        Edge: START → summarize_history → rewrite_query
+        """
         history = state.get("history", [])
         conversation_summary = self._reasoner.summarize_conversation(history)
         return {
@@ -51,6 +66,26 @@ class PipelineNodes:
         }
 
     def rewrite_query(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 2 — Query Analysis & Rewrite
+
+        Passes the raw user query (plus the conversation summary from step 1)
+        to `QueryReasoner.analyze_query`. The LLM decides two things:
+          1. Is the query clear enough to search for, or does it need
+             clarification (e.g. a one-word "it" with no prior context)?
+          2. If clear, produce a well-formed, search-optimised rewrite, and
+             optionally multiple sub-questions (stored in `rewritten_queries`).
+
+        On LLM failure, falls back to using the raw query as-is and marks
+        `analysis_error` so the trace records the degraded path.
+
+        Initialises the `PipelineTrace` object that every subsequent node
+        appends events to.
+
+        Edge (conditional — routes via `edges.route_after_rewrite`):
+          • clarify_needed=True  → clarify  (STEP 2a)
+          • clarify_needed=False → detect_query_type  (STEP 3)
+        """
         original_query = " ".join(state["query"].split())
         conversation_summary = state.get("conversation_summary", "")
         clarify_needed = True
@@ -112,13 +147,50 @@ class PipelineNodes:
         }
 
     def clarify(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 2a — Clarification Interrupt (Conditional Branch)
+
+        Only reached when `rewrite_query` determines the query is genuinely
+        ambiguous (e.g. a bare pronoun like "it" with no conversation context).
+
+        This node is registered as an `interrupt_before` node in the LangGraph
+        compiler. That means the graph is PAUSED here, the partial state is
+        checkpointed, and the API returns a clarification message to the
+        frontend. When the user sends a follow-up, the graph resumes from the
+        checkpoint and goes back to `rewrite_query` (STEP 2) with the new
+        message appended to history.
+
+        The node body itself is intentionally empty — all logic is in the
+        interrupt mechanism and the subsequent `rewrite_query` call.
+
+        Edge: clarify → rewrite_query  (STEP 2, loops back)
+        """
         del state
         return {}
 
     def detect_query_type(self, state: PipelineState) -> PipelineState:
         """
-        Detect if the query is about the conversation itself (meta-query).
-        If so, generate answer from conversation history instead of document retrieval.
+        STEP 3 — Detect Query Type & Complexity
+
+        Runs two quick LLM classifications on the rewritten query:
+
+          1. `detect_conversation_query`: Is this a meta-question about the
+             chat itself (e.g. "what did I ask earlier?")? If yes (confidence
+             ≥ 0.5), the answer is synthesised directly from `history` and the
+             pipeline short-circuits to `finish` (STEP 13) without ever
+             touching the vector database.
+
+          2. `detect_query_complexity`: Classifies as SIMPLE, MODERATE, or
+             COMPLEX. This drives the routing decision after this node — only
+             COMPLEX queries proceed to full query decomposition; others go
+             straight to the agent loop with the rewritten query as-is.
+
+        Both classifiers degrade gracefully: if the method is missing on the
+        reasoner or raises, defaults are used (False / MODERATE).
+
+        Edge (conditional — routes via `edges.route_after_detect_query_type`):
+          • is_conversation_query=True → finish  (STEP 13, skip retrieval)
+          • otherwise                 → prepare_decomposition  (STEP 4)
         """
         trace = state["trace"]
         rewritten_query = state.get("rewritten_query", "")
@@ -234,6 +306,26 @@ class PipelineNodes:
     )
 
     def prepare_decomposition(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 4 — Query Decomposition
+
+        For COMPLEX queries (or queries containing multi-part linguistic
+        markers such as "compare", "and how", "contrast"), calls
+        `QueryReasoner.decompose_query_lightly` to split the query into 2-3
+        focused, non-overlapping sub-questions.
+
+        Each sub-question becomes a `SubQueryStatus` object that the agent
+        loop (STEPS 6-8) will process independently, tracking which chunks
+        were retrieved for each and what quality score they achieved.
+
+        If decomposition is disabled in settings, or the query is SIMPLE /
+        MODERATE and has no multi-part markers, the original rewritten query
+        is wrapped in a single `SubQueryStatus` and passed through unchanged.
+
+        Deduplicates sub-queries case-insensitively to avoid redundant searches.
+
+        Edge: prepare_decomposition → agent_initialize  (STEP 5)
+        """
         trace = state["trace"]
         rewritten_query = state.get("rewritten_query", "")
         rewritten_queries = state.get("rewritten_queries") or [rewritten_query]
@@ -318,6 +410,22 @@ class PipelineNodes:
         return {"rewritten_queries": next_queries, "subquery_statuses": subquery_statuses, "trace": trace}
 
     def agent_initialize(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 5 — Agent Loop Initialisation
+
+        Resets all per-loop counters and initialises agent bookkeeping fields
+        before the Think-Act-Reflect loop begins:
+          • `agent_iterations` → 0
+          • `evidence_quality_score` → 0.0
+          • `agent_thoughts` / `agent_observations` → empty lists
+          • `selected_action` → "search_documents"  (default first action)
+          • `target_subquery_index` → 0  (start with first sub-query)
+
+        Logs the configured `max_iterations` limit and sub-query count to the
+        trace so it is visible in the observability dashboard.
+
+        Edge: agent_initialize → agent_think  (STEP 6)
+        """
         trace = state["trace"]
         subquery_statuses = state.get("subquery_statuses") or [
             SubQueryStatus(query=q) for q in (state.get("rewritten_queries") or [state.get("rewritten_query", "")])
@@ -343,6 +451,31 @@ class PipelineNodes:
         }
 
     def agent_think(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 6 — Agent Think  (Loop: Think → Act → Reflect)
+
+        The THINK phase of the Think-Act-Reflect loop. Increments the
+        iteration counter and calls `QueryReasoner.plan_agent_step`, which
+        reasons over the current evidence quality, pending sub-queries, and
+        the last observation to choose the next action. Possible actions:
+
+          • "search_documents" — run a targeted vector-DB search for a
+            specific sub-query (most common).
+          • "web_search"       — fall back to web augmentation when local
+            evidence is insufficient (only if enabled in settings).
+          • "finalize"         — the LLM believes current evidence is
+            sufficient; skip further retrieval and proceed to synthesis.
+
+        HEURISTIC OVERRIDE: On iterations 3-4 of a comparative query (e.g.
+        "compare X vs Y") where all previous iterations used search_documents,
+        the action is forcibly switched to web_search to break the local-only
+        retrieval loop and fetch entities potentially missing from the corpus.
+
+        Falls back to `_pick_weakest_subquery` and "search_documents" if the
+        reasoner raises or the method is missing.
+
+        Edge: agent_think → agent_act  (STEP 7)
+        """
         trace = state["trace"]
         agent_iterations = state.get("agent_iterations", 0) + 1
         subquery_statuses = state.get("subquery_statuses") or []
@@ -432,6 +565,34 @@ class PipelineNodes:
         }
 
     def agent_act(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 7 — Agent Act  (Loop: Think → Act → Reflect)
+
+        The ACT phase: executes the tool chosen by `agent_think`. Dispatches
+        to one of three branches based on `selected_action`:
+
+          • "finalize": No-op. Records an observation that evidence is
+            sufficient and passes through to `agent_reflect` (STEP 8).
+
+          • "search_documents": Calls `self.retrieve()` (the internal
+            retrieval helper, not a separate graph node) targeted at the
+            sub-query identified by `target_subquery_index`. New chunks are
+            merged into the accumulated `chunks` pool, deduplicated by
+            `chunk_id`. The targeted `SubQueryStatus` is updated to
+            "retrieved" with the new chunk IDs appended.
+
+          • "web_search": Calls `AgentTools.web_search()` when enabled.
+            Blocked unless local evidence already exists (configurable via
+            `web_search_requires_local_evidence`). Web chunks are merged
+            into the same pool with provenance="web" so they are
+            distinguishable from local documents.
+
+        All branches append an `AgentObservation` to the observations list
+        so `agent_think` (STEP 6) can reference the last outcome on the next
+        iteration.
+
+        Edge: agent_act → agent_reflect  (STEP 8)
+        """
         trace = state["trace"]
         selected_action = state.get("selected_action", "search_documents")
         subquery_statuses = list(state.get("subquery_statuses") or [])
@@ -598,6 +759,24 @@ class PipelineNodes:
         return {"agent_observations": observations, "subquery_statuses": subquery_statuses, "trace": trace}
 
     def agent_reflect(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 8 — Agent Reflect  (Loop: Think → Act → Reflect)
+
+        The REFLECT phase: evaluates the quality of the currently accumulated
+        evidence without calling the LLM. Quality is computed as a weighted
+        blend of the top chunk score (70%) and the mean chunk score (30%).
+
+        Additionally computes per-sub-query quality scores using only the
+        chunks assigned to each sub-query. A sub-query is marked "sufficient"
+        when its score meets the `agent_evidence_quality_threshold`.
+
+        The resulting `evidence_quality_score` is used by the conditional
+        edge `edges.route_agent_loop` to decide whether to loop again:
+
+        Edge (conditional — routes via `edges.route_agent_loop`):
+          • evidence insufficient AND iterations < max → agent_think  (STEP 6)
+          • evidence sufficient  OR  iterations ≥ max → should_compress_context  (STEP 9)
+        """
         trace = state["trace"]
         chunks = state.get("chunks", [])
         chunk_by_id = {c.chunk_id: c for c in chunks}
@@ -646,6 +825,28 @@ class PipelineNodes:
         }
 
     def retrieve(self, state: PipelineState) -> PipelineState:
+        """
+        INTERNAL HELPER — Vector-DB Retrieval (called from agent_act, not a graph node)
+
+        Not wired as a LangGraph node. Called directly by `agent_act` (STEP 7)
+        during the "search_documents" branch. Runs a two-phase retrieval:
+
+          Phase 1 — Search:  Calls `AgentTools.search_chunks()` for each
+            unique query in `rewritten_queries`, collecting scored
+            `EvidenceChunk` results from Qdrant. Deduplicates queries
+            case-insensitively before issuing calls.
+
+          Phase 2 — Hydration: Calls `AgentTools.fetch_chunks_by_ids()` on
+            the discovered chunk IDs to retrieve full text (search results
+            may contain truncated previews). Scores from phase 1 are
+            preserved on the hydrated chunks.
+
+        Falls back to the raw search hits if hydration returns nothing
+        (e.g. in tests using lightweight fakes).
+
+        Updates `retrieval_keys`, `iteration_count`, `tool_call_count`,
+        and `retrieval_attempted` for budget-tracking in step 9.
+        """
         trace = state["trace"]
         rewritten_queries = state.get("rewritten_queries") or [state["rewritten_query"]]
 
@@ -697,12 +898,39 @@ class PipelineNodes:
         }
 
     def should_compress_context(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 9 — Compression Gate
+
+        A lightweight decision node that fires after the agent loop exits.
+        Determines whether the synthesis prompt would exceed the LLM's
+        effective context window:
+
+          1. Calls `QueryReasoner._select_chunks_for_synthesis()` to get
+             the ACTUAL subset of chunks that will be sent to the LLM
+             (not the full accumulated pool). This is critical — estimating
+             tokens on the entire pool caused spurious compression.
+          2. Estimates token count as (total characters) / 4.
+          3. Compares against a dynamic threshold:
+             `base_threshold + (existing_summary_chars / 4 * growth_factor)`.
+
+        Also checks if the agent loop exhausted its tool-call budget
+        (`tool_call_count > agent_max_tool_calls`) and sets `limit_exceeded`.
+
+        Edge (conditional — routes via `edges.route_after_should_compress`):
+          • limit_exceeded=True               → fallback_response  (STEP 9b)
+          • compress_needed=True              → compress_context    (STEP 9a)
+          • neither                           → validate            (STEP 10)
+        """
         trace = state["trace"]
         chunks = state.get("chunks", [])
         existing_summary = state.get("context_summary", "")
 
-        # Lightweight token estimate to mirror reference threshold-gate behavior.
-        current_chars = sum(len(chunk.text) for chunk in chunks)
+        # Lightweight token estimate: measure only the chunks that will actually be
+        # passed to synthesis (capped by _select_chunks_for_synthesis), not the
+        # entire accumulated pool.  Estimating the full pool caused compression to
+        # fire even when synthesis only ever sees a small, bounded subset.
+        synthesis_chunks = QueryReasoner._select_chunks_for_synthesis(chunks)
+        current_chars = sum(len(chunk.text) for chunk in synthesis_chunks)
         summary_chars = len(existing_summary)
         estimated_tokens = (current_chars + summary_chars) // 4
         max_allowed = self._settings.context_compression_base_threshold + int(
@@ -737,6 +965,20 @@ class PipelineNodes:
         }
 
     def compress_context(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 9a — Context Compression (Conditional Branch)
+
+        Only reached when `should_compress_context` (STEP 9) determines the
+        accumulated evidence would overflow the LLM context window.
+
+        Summarises the top-8 chunks (plus any pre-existing `context_summary`
+        from prior compression passes) by passing them as a pseudo-conversation
+        to `QueryReasoner.summarize_conversation`. The resulting
+        `context_summary` string replaces the full chunk text for downstream
+        steps, keeping the prompt within budget.
+
+        Edge: compress_context → validate  (STEP 10)
+        """
         trace = state["trace"]
         chunks = state.get("chunks", [])
         existing_summary = state.get("context_summary", "")
@@ -769,6 +1011,20 @@ class PipelineNodes:
         return {"context_summary": context_summary, "trace": trace}
 
     def fallback_response(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 9b — Fallback Response (Conditional Branch — Loop Budget Exceeded)
+
+        Only reached when the agent loop exhausted its tool-call budget
+        (`limit_exceeded=True` from STEP 9) before accumulating sufficient
+        evidence. Immediately returns the configured `safe_fail_message` to
+        the user and sets `safe_fail=True` so the `finish` node records the
+        failure correctly.
+
+        Bypasses `validate`, `generate`, and `verify` entirely — there is no
+        point synthesising an answer when the retrieval budget ran out.
+
+        Edge: fallback_response → finish  (STEP 13)
+        """
         trace = state["trace"]
         answer = self._settings.safe_fail_message
         grounding = GroundingResult(
@@ -792,6 +1048,26 @@ class PipelineNodes:
         }
 
     def validate(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 10 — Evidence Validation (Heuristic Gate)
+
+        A fast, heuristic-only check (no LLM call) that verifies the
+        retrieved evidence meets the minimum quality bar before wasting an
+        expensive synthesis call:
+
+          • FAIL if `chunks` is empty.
+          • FAIL if the top chunk's score is below `min_relevance_score`.
+          • PASS otherwise.
+
+        The resulting `ValidationResult` travels into `generate` (STEP 11),
+        which inspects it to decide between synthesising a real answer or
+        immediately emitting a safe-fail message.
+
+        Note: PASS here does NOT mean the final answer will be grounded —
+        that is the job of `verify` (STEP 12).
+
+        Edge: validate → generate  (STEP 11)
+        """
         chunks = state["chunks"]
         if not chunks:
             validation = ValidationResult(
@@ -819,6 +1095,32 @@ class PipelineNodes:
         return {"validation": validation, "trace": trace}
 
     def generate(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 11 — Answer Generation
+
+        The primary synthesis step. Calls `_generate_supported` (which
+        delegates to `QueryReasoner.synthesize_answer`) using the accumulated
+        evidence chunks and the original (not rewritten) user query.
+
+        Three exit paths:
+
+          1. Validation FAILED (from STEP 10): Immediately returns the
+             configured `safe_fail_message` without calling the LLM.
+
+          2. LLM raises during synthesis: Falls back to safe-fail and logs
+             the exception in the trace.
+
+          3. LLM returns a REFUSAL (detects phrases like "I cannot answer",
+             "insufficient evidence", etc.) when the top chunk score ≥ 0.7:
+             Retries once with `force_answer=True`, which instructs the
+             reasoning prompt to answer from the available evidence even if
+             imperfect. If the retry also fails, the first attempt is kept.
+
+        On success, `citations` is formatted as `"source.pdf#chunk-id"` so
+        the frontend can deep-link to the source document.
+
+        Edge: generate → verify  (STEP 12)
+        """
         trace = state["trace"]
         if state["validation"].status == ValidationStatus.FAIL:
             answer, response_source, prompt_version = (
@@ -895,6 +1197,32 @@ class PipelineNodes:
         return {"answer": answer, "citations": citations, "safe_fail": False, "trace": trace}
 
     def verify(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 12 — Grounding Verification  (Hallucination Guard)
+
+        Acts as the final quality gate. Calls `QueryReasoner.assess_grounding`
+        to have the LLM judge whether the generated answer is factually
+        supported by the evidence it cited.
+
+        Evidence selection strategy:
+          • Preferred: only the chunks explicitly cited in the answer (i.e.
+            those whose chunk_id appears in `citations`). This is the most
+            faithful check.
+          • Fallback: the first 8 chunks in the pool if no citations were
+            resolved (e.g. the LLM omitted inline tags).
+          • In both cases, only the first 500 characters of each chunk and
+            the top 6 chunks are sent to keep the grounding prompt short.
+
+        If `grounding.status == UNSUPPORTED` or `is_refusal` is set:
+          • The generated answer is replaced with `safe_fail_message`.
+          • `citations` is cleared.
+          • `safe_fail` is set to True.
+
+        If `safe_fail` was already True coming in (from STEP 11), the
+        grounding call is skipped entirely — it was already pre-gated.
+
+        Edge: verify → finish  (STEP 13)
+        """
         trace = state["trace"]
         answer = state["answer"]
         citations = state["citations"]
@@ -951,6 +1279,25 @@ class PipelineNodes:
         }
 
     def finish(self, state: PipelineState) -> PipelineState:
+        """
+        STEP 13 — Finalise & Commit Trace  (Terminal Node)
+
+        The last node before END. Writes the final summary fields onto the
+        `PipelineTrace` object:
+          • `final_grounding_status` — SUPPORTED / PARTIAL / UNSUPPORTED.
+          • `agent_iterations_used`  — how many Think-Act-Reflect cycles ran.
+          • `agent_thought_count`    — total number of `AgentThought` records.
+
+        Appends the terminal "answer" event to the trace, which the
+        `TraceStore` will then persist so it can be retrieved via the
+        `/trace/{trace_id}` API endpoint.
+
+        Returns the updated `trace` to the state. LangGraph routes this to
+        END and the `AgenticPipeline` reads the final state to build the
+        `AskResponse` returned to the caller.
+
+        Edge: finish → END
+        """
         trace = state["trace"]
         trace.final_grounding_status = state["grounding"].status
         trace.agent_iterations_used = state.get("agent_iterations", 0)
