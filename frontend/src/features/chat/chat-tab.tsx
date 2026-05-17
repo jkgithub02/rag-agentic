@@ -161,7 +161,7 @@ function PipelineTracePanel({ trace }: { trace: PipelineTrace }) {
                             <div key={i} className="ml-2 mt-1 border-l-2 border-[var(--line)] pl-2">
                                 <p className="font-medium">Step {i + 1}: {String(t.payload.recommended_action || "thinking")}</p>
                                 {t.payload.reasoning != null && (
-                                    <p className="italic">{String(t.payload.reasoning).slice(0, 150)}</p>
+                                    <p className="italic">{String(t.payload.reasoning)}</p>
                                 )}
                             </div>
                         ))}
